@@ -1,15 +1,11 @@
-from sympy import Eq, sympify
+from sympy import Eq, sympify, simplify
 from sympy_addons import customize_rewrite
 
 class CustomEq(Eq):
     C = sympify('C')
-    def __new__(cls, lhs, rhs, fresh=True, **options):
-        if fresh:
-            lhs = CustomEq.constant_rewriter(lhs)
-            rhs = CustomEq.constant_rewriter(rhs)
-        else:
-            lhs = lhs
-            rhs = rhs
+    def __new__(cls, lhs, rhs, **options):
+        lhs = lhs
+        rhs = rhs
         return Eq.__new__(cls, lhs, rhs, **options)
 
     def postorder_traversal(expr, expr_op, parent=None):
@@ -31,41 +27,12 @@ class CustomEq(Eq):
             expr = None
         return expr
     
-    def constant_rewriter(expr):
-        def _match(term, parent):
-            if term.is_Number and ((expr == parent and parent.is_Add) or (parent is None and term == expr)):
-                new_term = sympify(f"{term}*{CustomEq.C}", evaluate=False)
-                return new_term
-            else:
-                return term
-        rewrite_res = CustomEq.postorder_traversal(expr, _match)
-        if rewrite_res is None:
-            return 0
-        else:
-            return rewrite_res
-    
-    def constant_remove_rewriter(expr):
-        def _match(term, parent):
-            if term.is_Mul and ((expr == parent and parent.is_Add) or (parent is None and term == expr)):
-                args = list(term.args)
-                if CustomEq.C in args:
-                    return term/CustomEq.C
-                else:
-                    return term
-            else:
-                return term
-        rewrite_res = CustomEq.postorder_traversal(expr, _match)
-        if rewrite_res is None:
-            return 0
-        else:
-            return rewrite_res
-    
     def drop_coeff_with_var(expr, var):
         drop_counts = 0
         dropped_coeff = None
         def _match(term, parent):
             nonlocal drop_counts, dropped_coeff
-            if term.is_Mul and ((expr == parent and parent.is_Add) or (parent is None and term == expr)) and drop_counts == 0:
+            if term.has(var) and ((expr == parent and parent.is_Add) or (parent is None and term == expr)) and drop_counts == 0:
                 args = list(term.args)
                 if var in args:
                     drop_counts += 1
@@ -86,17 +53,19 @@ class CustomEq(Eq):
         collected_something = False
         def _match(term, parent):
             nonlocal collected_coeff, collected_something
-            if term.is_Mul and ((expr == parent and parent.is_Add) or (parent is None and term == expr)):
-                args = list(term.args)
-                if var in args:
-                    collected_coeff += term
-                    collected_something = True
-                    return None
-                else:
-                    return term
-            else:
-                return term
+            simplified_term = sympify(f"{term}", evaluate=True)
+            if simplified_term.has(var) and ((expr == parent and parent.is_Add) or (parent is None and term == expr)):
+                args = list(simplified_term.args)
+                if var in args or var == term:
+                    if simplified_term.is_Mul or var == term:
+                        collected_something = True
+                        collected_coeff += simplified_term.coeff(var)
+                        return None
+            return term
         rewrite_res = CustomEq.postorder_traversal(expr, _match)
+        if collected_something:
+            collected_coeff = sympify(f"{collected_coeff}*{var}")
+            # collected_coeff = collect(collected_coeff, var, evaluate=False)[var]*var
         if rewrite_res is None and collected_something:
             return collected_coeff
         elif not collected_something:
@@ -104,9 +73,33 @@ class CustomEq(Eq):
         else:
             return sympify(f"{collected_coeff} + {rewrite_res}", evaluate=False)
     
+    def collect_constants(expr):
+        collected_constants = 0
+        collected_some_constants = False
+        def _match(term, parent):
+            nonlocal collected_constants, collected_some_constants
+            simplified_term = sympify(f"{term}", evaluate=True)
+            if simplified_term.is_Number and ((expr == parent and parent.is_Add) or (parent is None and term == expr)):
+                collected_constants += term
+                collected_some_constants = True
+                return None
+            else:
+                return term
+        rewrite_res = CustomEq.postorder_traversal(expr, _match)
+        if collected_some_constants:
+            collected_constants = simplify(collected_constants)
+        if rewrite_res is None and collected_some_constants:
+            return collected_constants
+        elif not collected_some_constants:
+            return expr
+        else:
+            return sympify(f"{rewrite_res} + {collected_constants}", evaluate=False)
+
     def add_term(expr, term):
-        expr = sympify(f"{expr} + {term}", evaluate=False)
-        return expr
+        args = list(expr.args)
+        args.append(term)
+        new_expr = expr.func(*args, evaluate=False)
+        return new_expr
     
     def divide_by_coeff(expr, var, coeff=None):
         coeff_assigned = coeff is not None
@@ -156,24 +149,62 @@ class CustomEq(Eq):
         else:
             return rewrite_res
 
+    def move_constant(expr):
+        constant = 0
+        constant_found = False
+        def _match(term, parent):
+            nonlocal constant, constant_found
+            if term.is_Number and ((expr == parent and parent.is_Add) or (parent is None and term == expr)) and not constant_found:
+                constant += term
+                constant_found = True
+                return None
+            else:
+                return term
+        rewrite_res = CustomEq.postorder_traversal(expr, _match)
+        if rewrite_res is None and constant_found:
+            return 0, constant
+        elif not constant_found:
+            return expr, 0
+        else:
+            return rewrite_res, constant
+
     def move_terms_rewriter(*args, **kwargs):
         var_name = kwargs.get('var', None)
         assert var_name is not None, 'Variable name not provided'
         lhs, rhs = args
-        # Match the last coefficient of the variable in the lhs
-        var = sympify(var_name, evaluate=False)
-        new_lhs, dropped_term = CustomEq.drop_coeff_with_var(lhs, var)
-        new_rhs = CustomEq.add_term(rhs, -dropped_term)
-        return CustomEq(new_lhs, new_rhs, fresh=False, evaluate=False)
+        if var_name == 'C':
+            return CustomEq.move_constant_rewriter(*args, **kwargs)
+        else:
+            # Match the last coefficient of the variable in the lhs
+            var = sympify(var_name, evaluate=False)
+            new_lhs, dropped_term = CustomEq.drop_coeff_with_var(lhs, var)
+            if dropped_term is not None:
+                new_rhs = CustomEq.add_term(rhs, -dropped_term)
+            else:
+                new_lhs = lhs
+                new_rhs = rhs
+            return CustomEq(new_lhs, new_rhs, evaluate=False)
+    
+    def move_constant_rewriter(*args, **kwargs):
+        lhs, rhs = args
+        new_lhs, constant = CustomEq.move_constant(lhs)
+        if constant != 0:
+            new_rhs = CustomEq.add_term(rhs, -constant)
+        else:
+            new_rhs = rhs
+        return CustomEq(new_lhs, new_rhs, evaluate=False)
 
     def collect_rewriter(*args, **kwargs):
         var_name = kwargs.get('var', None)
         assert var_name is not None, 'Variable name not provided'
-        var = sympify(var_name, evaluate=False)
-        lhs, rhs = args
-        lhs = CustomEq.collect_coeff_with_var(lhs, var)
-        rhs = CustomEq.collect_coeff_with_var(rhs, var)
-        return CustomEq(lhs, rhs, fresh=False, evaluate=False)
+        if var_name == 'C':
+            return CustomEq.collect_constants_rewriter(*args, **kwargs)
+        else:
+            var = sympify(var_name, evaluate=False)
+            lhs, rhs = args
+            lhs = CustomEq.collect_coeff_with_var(lhs, var)
+            rhs = CustomEq.collect_coeff_with_var(rhs, var)
+            return CustomEq(lhs, rhs, evaluate=False)
     
     def divide_by_coeff_rewriter(*args, **kwargs):
         var_name = kwargs.get('var', None)
@@ -191,20 +222,23 @@ class CustomEq(Eq):
         assert var_name is not None, 'Variable name not provided'
         var = sympify(var_name, evaluate=False)
         lhs, rhs = args
-        # Remove the constant from the equation
-        lhs = CustomEq.constant_remove_rewriter(lhs)
-        rhs = CustomEq.constant_remove_rewriter(rhs)
         lhs = CustomEq.simplify_identity(lhs, var)
         rhs = CustomEq.simplify_identity(rhs, var)
         # Since the constant has been removed, add it back to the equation
-        return CustomEq(lhs, rhs, fresh=True, evaluate=False)
+        return CustomEq(lhs, rhs, evaluate=False)
         
+    def collect_constants_rewriter(*args, **kwargs):
+        lhs, rhs = args
+        lhs = CustomEq.collect_constants(lhs)
+        rhs = CustomEq.collect_constants(rhs)
+        return CustomEq(lhs, rhs, evaluate=False)
+    
     def __str__(self):
         # Remove the constant from the equation
         lhs = self.lhs
         rhs = self.rhs
-        lhs = CustomEq.constant_remove_rewriter(lhs)
-        rhs = CustomEq.constant_remove_rewriter(rhs)
+        # lhs = CustomEq.constant_remove_rewriter(lhs)
+        # rhs = CustomEq.constant_remove_rewriter(rhs)
         return f"{lhs} = {rhs}"
     
     def set_rewrite_rules():
@@ -213,6 +247,8 @@ class CustomEq(Eq):
         CustomEq.rewrite_manager.add_rule('move_terms', CustomEq.move_terms_rewriter)
         CustomEq.rewrite_manager.add_rule('divide_by_coeff', CustomEq.divide_by_coeff_rewriter)
         CustomEq.rewrite_manager.add_rule('simplify_identity', CustomEq.simplify_identity_rewriter)
+        CustomEq.rewrite_manager.add_rule('collect_constants', CustomEq.collect_constants_rewriter)
+        CustomEq.rewrite_manager.add_rule('move_constant', CustomEq.move_constant_rewriter)
 
 CustomEq.set_rewrite_rules()
 
@@ -224,13 +260,28 @@ def create_eqn(eqn: str):
     rhs = sympify(rhs, evaluate=False)
     return CustomEq(lhs, rhs, evaluate=False)
 
-eqn = create_eqn('3*y + 2*x + 1 + 5 = 4*y + 0')
-print(eqn)
-eqn = eqn.rewrite('move_terms', var='y')
-print(eqn)
-eqn = eqn.rewrite('collect', var='y')
-print(eqn)
-eqn = eqn.rewrite('simplify_identity', var='y')
-print(eqn)
-eqn = eqn.rewrite('divide_by_coeff', var='x')
-print(eqn)
+if __name__ == "__main__":
+    eqn = create_eqn('3*y + 2*x + 1 + 5 = 4*y + 0 + 2*(y - 4)')
+    print(eqn)
+    eqn = eqn.rewrite('move_terms', var='y')
+    print(eqn)
+    eqn = eqn.rewrite('collect', var='y')
+    print(eqn)
+    eqn = eqn.rewrite('simplify_identity', var='y')
+    print(eqn)
+    eqn = eqn.rewrite('divide_by_coeff', var='x')
+    print(eqn)
+    eqn = eqn.rewrite('collect_constants')
+    print(eqn)
+    eqn = eqn.rewrite('collect', var='y')
+    print(eqn)
+    eqn = eqn.rewrite('collect_constants')
+    print(eqn)
+    eqn = eqn.rewrite('move_constant')
+    print(eqn)
+    eqn = eqn.rewrite('collect_constants')
+    print(eqn)
+    eqn = eqn.rewrite('collect_constants')
+    print(eqn)
+    eqn = eqn.rewrite('collect', var='y')
+    print(eqn)
