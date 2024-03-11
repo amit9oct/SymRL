@@ -1,0 +1,3 @@
+sympy==1.12
+gymnasium==0.26.3
+sympy-addons==0.0.5
