@@ -1,9 +1,9 @@
 import gymnasium as gym
 import numpy as np
 try:
-    from .sympy_custom_eq import CustomEq, create_eqn
+    from .sympy_custom_eq import CustomEq, create_eqn, get_op_count
 except ImportError:
-    from sympy_custom_eq import CustomEq, create_eqn
+    from sympy_custom_eq import CustomEq, create_eqn, get_op_count
 
 class EqRewriteActionSpace(gym.Space):
     """
@@ -36,6 +36,8 @@ class SympyEnv(gym.Env):
         self.reset()
 
     def step(self, action):
+        if isinstance(action, int) or np.issubdtype(action, np.integer):
+            action = self.action_space.actions[action]
         if not self.action_space.contains(action):
             raise ValueError(f"Invalid action: {action}")
         action_type, var = action.split('(')
@@ -91,3 +93,8 @@ class SympyEnv(gym.Env):
         CustomEq.postorder_traversal(rhs, _math)
         if len(unknown_supported_symbols) >= 1:
             raise ValueError(f"Equation has unknown supported symbols: {unknown_supported_symbols}")
+    
+    @staticmethod
+    def get_lhs_rhs_op_count(observation):
+        lhs, rhs = get_op_count(observation)
+        return lhs, rhs

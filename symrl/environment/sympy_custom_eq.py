@@ -260,6 +260,10 @@ def create_eqn(eqn: str):
     rhs = sympify(rhs, evaluate=False)
     return CustomEq(lhs, rhs, evaluate=False)
 
+def get_op_count(eqn: CustomEq):
+    lhs, rhs = eqn.args
+    return lhs.count_ops(), rhs.count_ops()
+
 if __name__ == "__main__":
     eqn = create_eqn('3*y + 2*x + 1 + 5 = 4*y + 0 + 2*(y - 4)')
     print("Created equation:", eqn)
@@ -285,3 +289,4 @@ if __name__ == "__main__":
     print("After collect_constants:", eqn)
     eqn = eqn.rewrite('collect', var='y')
     print("After collect(y):", eqn)
+    print("Op count:", get_op_count(eqn))
