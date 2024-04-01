@@ -1,38 +1,120 @@
 from algorithms.base_aglo import BaseAlgo
 from policy.base_policy import BasePolicy
+from tools.log_utils import setup_logger
 import gymnasium as gym
 import time
+import json
+import os
+import typing
 
-def run_learning_loop(env : gym.Env, policy: BasePolicy, rl_algo: BaseAlgo, episodes=100, max_steps_per_episode=100):
-    solved_tims = 0
+def run_policy(
+        env : gym.Env, 
+        policy: BasePolicy, 
+        rl_algo: BaseAlgo, 
+        episodes=100,
+        learn=True,
+        log=False,
+        log_file_prefix="symrl",
+        ckpt_num=0,
+        ckpt_period=1000,
+        render_func_action_callback: typing.Callable = None,
+        verbose=False):
+    time_str = time.strftime('%Y%m%d_%H%M%S')
+    log_folder = f".logs/{log_file_prefix}/{time_str}"
+    os.makedirs(log_folder, exist_ok=True)
+    policy_log_file = f"{log_folder}/policy.log"
+    policy_logger = setup_logger("policy_logger", policy_log_file)
+    replay_log_file = f"{log_folder}/replay.log"
+    replay_format = '{"time": "%(asctime)s", "details": %(message)s}'
+    replay_logger = setup_logger("stats_logger", replay_log_file, level="INFO", format=replay_format)
+    summary_stats_file = f"{log_folder}/summary.log"
+    summary_stats_format = '{"time": "%(asctime)s", "stats": %(message)s}'
+    summary_stats_logger = setup_logger("summary_stats_logger", summary_stats_file, level="INFO", format=summary_stats_format)
+    solved_times = 0
+    max_msg_len = 0
+    running_avg_reward = 0
+    last_reward = 0
+    info = {}
+    model_folder = f"{log_folder}/model"
+    ckpt_folder = f"{model_folder}/ckpt"
+    os.makedirs(ckpt_folder, exist_ok=True)
     for episode in range(episodes):
         state = env.reset()
+        if render_func_action_callback is not None:
+            render_func_action_callback(env, state, None, None, None, None, None, None)
+        start_state = state
         total_reward = 0
         action_sequence = []
-        for step in range(max_steps_per_episode):
+        truncated = False
+        done = False
+        step = 0
+        rewards = []
+        while not done and not truncated:
             action = policy.select_action(state)
-            next_state, reward, done, _ = env.step(action)
-            
-            rl_algo.update(state, action, reward, next_state, done)
+            try:
+                next_state, reward, done, truncated, info = env.step(action)
+            except Exception as e:
+                policy_logger.error(f"[ERROR]:\nError in episode {episode+1}, step {step+1}: {e}")
+                raise
+            if log and verbose:
+                action_prime = policy.pretty_print_action(action)
+                state_prime = policy.pretty_print_state(state)
+                policy_logger.info(f"[STEP]:\neps={episode+1} state={state_prime} action={action_prime} reward={reward} done={done}")
+            if render_func_action_callback is not None:
+                render_func_action_callback(env, state, action, next_state, reward, done, truncated, info)
+            if learn:
+                rl_algo.update(state, action, reward, next_state, done or truncated)
             action_sequence.append(action)
+            rewards.append(reward)
             state = next_state
             total_reward += reward
-            
+            step += 1
             if done:
-                solved_tims += 1
-                msg = f"\rSolved in {step+1} steps! Total reward: {total_reward}"
-                print("\r" +" "*500, end="", flush=True)
-                print(msg, end="", flush=True)
-                # Pause for a while
-                time.sleep(1)
-                print("\r" +" "*500, end="", flush=True)
-                action_seq_translated = [env.action_space.actions[action] for action in action_sequence]
-                msg = f"\rAction sequence length: {len(action_seq_translated)}"
-                print(msg, end="", flush=True)
-                # Pause for a while
-                time.sleep(1)
-                print("\r" +" "*500, end="", flush=True)
-                break
-        msg = f"\rEpisode {episode+1}/{episodes}, Step {step+1}, Total Reward: {total_reward} solved {solved_tims} times"
-        print("\r" +" "*len(msg), end="", flush=True)
-        print(msg, end="", flush=True)
+                solved_times += 1
+                if log:
+                    msg = f"[SOLVED]:\n{start_state} in {step} steps! Total reward: {total_reward}"
+                    policy_logger.info(msg)
+        last_reward = total_reward
+        running_avg_reward = (running_avg_reward * episode + total_reward) / (episode + 1)
+        replay_logger.info(
+            json.dumps(
+            {
+                "episode": episode+1,
+                "start_state": str(start_state),
+                "action_sequence": [policy.pretty_print_action(action) for action in action_sequence],
+                "rewards": rewards,
+                "solved": done,
+                "truncated": truncated
+            }))
+        summary_stats_logger.info(
+            json.dumps(
+            {
+                "episode": episode+1,
+                "last_reward": last_reward,
+                "running_avg_reward": running_avg_reward,
+                "solved": done,
+                "truncated": truncated,
+                "solved_times": solved_times,
+                "info": info
+            }))
+        if episode % 50 == 0:
+            msg = f"[STATS]:\nEpisode {episode+1}/{episodes}, Step {step+1}, Avg Reward: {running_avg_reward}, Last Reward: {last_reward}, Solved: {solved_times} times, Solve Rate: {solved_times/(episode+1)*100:.2f}%"
+            max_msg_len = max(max_msg_len, len(msg))
+            msg = msg.ljust(max_msg_len)
+            policy_logger.info(msg)
+            if log and episode % ckpt_period == 0 and episode > 0 and learn:
+                msg = policy.pretty_print_policy()
+                policy_logger.info(f"[POLICY PRINT]:\n{msg}")
+        if episode % ckpt_period == 0 and episode > 0 and learn:
+            ckpt_num = episode
+            chkpt_num_folder = f"{ckpt_folder}/{ckpt_num}"
+            os.makedirs(chkpt_num_folder, exist_ok=True)
+            policy.save(chkpt_num_folder)
+            if log:
+                policy_logger.info(f"[CHKPT]:\nSaved checkpoint at episode {episode+1}.")
+    if log:
+        policy_logger.info(f"[FINAL]:\nSolved {solved_times} times in {episodes} episodes.")
+    if learn:
+        policy.save(model_folder)
+        if log:
+            policy_logger.info(f"[SAVE]:\nSaving model to {model_folder}")

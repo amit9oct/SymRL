@@ -1,3 +1,7 @@
 sympy==1.12
-gymnasium==0.26.3
+gymnasium[classic_control]==0.26.3
 sympy-addons==0.0.5
+kivy
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchviz

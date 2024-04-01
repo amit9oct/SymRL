@@ -32,16 +32,15 @@ class CustomEq(Eq):
         dropped_coeff = None
         def _match(term, parent):
             nonlocal drop_counts, dropped_coeff
-            if term.has(var) and ((expr == parent) or (parent is None and term == expr)) and drop_counts == 0:
-                args = list(term.args)
-                if var in args:
-                    drop_counts += 1
-                    dropped_coeff = term
-                    return None
-                else:
-                    return term
-            else:
-                return term
+            simplified_term = sympify(f"{term}", evaluate=True)
+            if simplified_term.has(var) and ((expr == parent) or (parent is None and term == expr)) and drop_counts == 0:
+                args = list(simplified_term.args)
+                if var in args or var == simplified_term:
+                    if simplified_term.is_Mul or (var == simplified_term and (parent is None or parent.is_Add)):
+                        drop_counts += 1
+                        dropped_coeff = term
+                        return None
+            return term
         rewrite_res = CustomEq.postorder_traversal(expr, _match)
         if rewrite_res is None:
             return 0, dropped_coeff
@@ -56,8 +55,8 @@ class CustomEq(Eq):
             simplified_term = sympify(f"{term}", evaluate=True)
             if simplified_term.has(var) and ((expr == parent) or (parent is None and term == expr)):
                 args = list(simplified_term.args)
-                if var in args or var == term:
-                    if simplified_term.is_Mul or var == term:
+                if var in args or var == simplified_term:
+                    if simplified_term.is_Mul or (var == simplified_term and (parent is None or parent.is_Add)):
                         collected_something = True
                         collected_coeff += simplified_term.coeff(var)
                         return None
@@ -264,6 +263,22 @@ def get_op_count(eqn: CustomEq):
     lhs, rhs = eqn.args
     return lhs.count_ops(), rhs.count_ops()
 
+def get_var_count(eqn: CustomEq, var: str):
+    lhs, rhs = eqn.args
+    var = sympify(var, evaluate=False)
+    return lhs.count(var), rhs.count(var)
+
+def get_term_count(eqn: CustomEq):
+    lhs, rhs = eqn.args
+    # recursively count the number of terms in the equation
+    def _count_terms(expr):
+        if expr.is_Atom:
+            return 1
+        else:
+            return sum([_count_terms(arg) for arg in expr.args])
+    return _count_terms(lhs), _count_terms(rhs)
+
+
 if __name__ == "__main__":
     eqn = create_eqn('3*y + 2*x + 1 + 5 = 4*y + 0 + 2*(y - 4)')
     print("Created equation:", eqn)
@@ -290,3 +305,22 @@ if __name__ == "__main__":
     eqn = eqn.rewrite('collect', var='y')
     print("After collect(y):", eqn)
     print("Op count:", get_op_count(eqn))
+    eqn = create_eqn('15*x = 12')
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('collect', var='x')
+    print("After collect(x):", eqn)
+    eqn = create_eqn('6*x + 1 = -10 - 7')
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('collect', var='x')
+    print("After collect(x):", eqn)
+    eqn = create_eqn('5 - 4*x = -6*x - 6 - 4')
+    print("Var count:", get_var_count(eqn, 'x'))
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('move_terms', var='x')
+    print("After move_terms(x):", eqn)
+    eqn = create_eqn('5 - 4*x + 3*x = -6*x - 6 - 4')
+    print("Var count:", get_var_count(eqn, 'x'))
+    print("Term count:", get_term_count(create_eqn('5 - 4*x + 3*x = -6*x - 6 - 4')))
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('move_terms', var='x')
+    print("After move_terms(x):", eqn)
