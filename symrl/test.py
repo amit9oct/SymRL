@@ -8,17 +8,21 @@ from func_approximator.nn_fun_approx import NeuralFuncApproximator
 from func_approximator.base_approx import FeatureExtractor, BaseFuncApproximator
 import threading
 import numpy as np
+import os
+import time
 from argparse import ArgumentParser
-
 try:
     from .run_learning import run_policy
 except ImportError:
     from run_learning import run_policy
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+print(os.getcwd())
+
 train_eqns = [
     "7*x - 8*x - 3 = -8 - 6",
     "7*x + 3*x - 3 = -7 + 9",
-    "-10*x + 6*x + 7 = 4 - 4",
+    "-10*x + 6*x + 7 = 4 - 4", # Policy fails on this one
     "-5*x - 9 = 5 + 4",
     "7*x - 1*x - 8 = 8 + 4",
     "-9*x + 6*x + 4 = 1 - 1",
@@ -114,6 +118,46 @@ class OpVarCountFeatureExtractor(FeatureExtractor):
         action_str = self.env.action_space.actions[action]
         return action_str
 
+class FourierFeatureExtractor:
+    def __init__(self, env: SympyEnv, n_features=10, sigma=1.0):
+        self.n_features = n_features
+        self.sigma = sigma # Scale of the random transformation
+        # Assuming 4 base features: ["lhs_term_count", "rhs_term_count", "lhs_var_count", "rhs_var_count"]
+        # Initialize random weights for each base feature for the transformation
+        self.weights = np.random.randn(4, n_features) * sigma
+        self.original_feature_names = ["lhs_term_count", "rhs_term_count", "lhs_var_count", "rhs_var_count"]
+        self.env = env
+
+    def __call__(self, observation):
+        lhs_term_cnt, rhs_term_cnt = SympyEnv.get_lhs_rhs_term_count(observation)
+        lhs_op_cnt, rhs_op_cnt = SympyEnv.get_lhs_rhs_op_count(observation)
+        lhs, rhs = (lhs_term_cnt + lhs_op_cnt), (rhs_term_cnt + rhs_op_cnt)
+        lhs_var_count, rhs_var_count = SympyEnv.get_lhs_rhs_var_count(observation)
+        # Ensure observation is a numpy array
+        observation = np.array([lhs, rhs, lhs_var_count, rhs_var_count])
+        # Normalize the observation to ensure the Fourier features are bounded
+        norm_obs = (observation - np.mean(observation)) / (np.std(observation) + 1e-7)
+        # Compute the transformation
+        transformed_obs = np.dot(norm_obs, self.weights)
+        # Apply the sinusoidal function to get the Fourier features
+        fourier_features = np.cos(transformed_obs)
+        return fourier_features.flatten()
+
+    def pretty_print_feature_extractor(self):
+        feature_descriptions = []
+        for original_feature in self.original_feature_names:
+            for i in range(self.n_features):
+                feature_descriptions.append(f"{original_feature}_fourier_feature_{i}")
+        return ", ".join(feature_descriptions)
+    
+    def pretty_print_state(self, state) -> str:
+        state_str = str(self(state))
+        return state_str
+    
+    def pretty_print_action(self, action) -> str:
+        action_str = self.env.action_space.actions[action]
+        return action_str
+
 action_space = EqRewriteActionSpace(supported_vars="x")
 num_actions = len(action_space.actions)
 alpha = 1e-3
@@ -132,9 +176,11 @@ args.add_argument("--render", type=bool, default=render)
 args.add_argument("--do_train", type=bool, default=True)
 args.add_argument("--do_test", type=bool, default=True)
 args.add_argument("--load", type=bool, default=False)
-args.add_argument("--func_approx", type=str, default="nn")
-args.add_argument("--algo", type=str, default="mc")
+args.add_argument("--func_approx", type=str, default="lin")
+args.add_argument("--algo", type=str, default="td")
 args.add_argument("--gui", type=bool, default=False)
+# args.add_argument("--folder", type=str, default=os.path.join(".log", "train__approx_nn__td__eps", "20240331_025235", "model"))
+args.add_argument("--folder", type=str, default=r"D:\Documents\Local\Source\RL\Project_Proposal\.logs\train__approx_nn__td__eps\20240331_025235\model")
 args = args.parse_args()
 num_episodes = args.num_episodes
 alpha = args.alpha
@@ -148,9 +194,8 @@ do_test = args.do_test
 func_approx_type = args.func_approx
 algo_type = args.algo
 launch_gui = args.gui
+model_folder = args.folder
 if launch_gui:
-    import os
-    import time
     os.environ["KIVY_NO_ARGS"] = "1"
     os.environ["KIVY_NO_CONSOLELOG"] = "1"
     from environment.sympy_env_kivy_gui import EquationApp
@@ -159,7 +204,7 @@ train_env = SympyEnv(train_eqns, maximum_step_limit=maximum_step_limit, action_s
 test_env = SympyEnv(test_equations, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False)
 
 if load_from_file:
-    func_approx = BaseFuncApproximator.load("model")
+    func_approx = BaseFuncApproximator.load(model_folder)
 else:
     if func_approx_type == "nn":
         func_approx = NeuralFuncApproximator(
@@ -167,13 +212,21 @@ else:
             num_features=4, 
             num_actions=num_actions, 
             learning_rate=alpha)
-    else:
+    elif func_approx_type == "lin":
+        # func_approx = LinearFuncApproximator(
+        #     feature_extractor=OpVarCountFeatureExtractor(train_env), 
+        #     num_features=4, 
+        #     num_actions=num_actions, 
+        #     learning_rate=alpha, 
+        #     random_init=False)
         func_approx = LinearFuncApproximator(
-            feature_extractor=OpVarCountFeatureExtractor(train_env), 
-            num_features=4, 
+            feature_extractor=FourierFeatureExtractor(train_env, n_features=10, sigma=1.0),
+            num_features=10, 
             num_actions=num_actions, 
             learning_rate=alpha, 
             random_init=False)
+    else:
+        raise ValueError(f"Invalid function approximator type: {func_approx_type}")
 if algo_type == "td":
     algo = TDZero(num_actions, func_approx, gamma=gamma)
 elif algo_type == "mc":
@@ -181,8 +234,8 @@ elif algo_type == "mc":
 else:
     raise ValueError(f"Invalid algorithm type: {algo_type}")
 policy = EpsilonGreedyPolicy(epsilon=eps, num_actions=num_actions, func_approximator=func_approx)
-train_prefix = f"train__approx_nn__td__eps"
-test_prefix = f"test__approx_nn__td__gr"
+train_prefix = f"train__approx_nn__{algo_type}__eps"
+test_prefix = f"test__approx_nn__{algo_type}__gr"
 gui_callback = None
 app = None
 
@@ -203,7 +256,7 @@ def train():
             print(e)
             pass
     if app is not None:
-        app.stop()
+        app.gui.set_stop()
 
 def test():
     if do_test:
@@ -215,8 +268,8 @@ def test():
         except Exception as e:
             print(e)
             pass
-    if app is not None:
-        app.stop()
+    # if app is not None:
+    #     app.gui.set_stop()
 
 def _gui_callback(env: SympyEnv, state, action, next_state, reward, done, truncated, info):
     if app is not None:
@@ -225,13 +278,15 @@ def _gui_callback(env: SympyEnv, state, action, next_state, reward, done, trunca
         else:
             app.gui.update_equation(str(env.equation))
             app.gui.update_solution(None, reset=True)
+        time.sleep(0.1)
 
 if launch_gui:
     gui_callback = _gui_callback
     app = EquationApp(train_env)
     threading.Thread(target=train).start()
     app.run()
-    app = EquationApp(test_env)
+    greedy_policy = GreedyPolicy(num_actions=num_actions, func_approximator=func_approx)
+    app = EquationApp(test_env, policy=greedy_policy)
     threading.Thread(target=test).start()
     app.run()
 else:

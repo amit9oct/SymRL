@@ -5,6 +5,7 @@ except ImportError:
     from base_approx import BaseFuncApproximator, FeatureExtractor
 import pickle
 import json
+import os
 
 class LinearFuncApproximator(BaseFuncApproximator):
     def __init__(self, feature_extractor, num_features, num_actions, learning_rate=0.01, random_init=False):
@@ -88,11 +89,11 @@ class LinearFuncApproximator(BaseFuncApproximator):
         np.savez(filename, q_weights=self.q_weights, v_weights=self.v_weights)
 
     def load(folder):
-        filename = f"{folder}/LinearFuncApproximator.npz"
-        settings_filename = f"{folder}/Settings.json"
+        filename = os.path.join(folder, "LinearFuncApproximator.npz")  #f"{folder}/LinearFuncApproximator.npz"
+        settings_filename = os.path.join(folder, "Settings.json") # f"{folder}/Settings.json"
         with open(settings_filename, 'r') as f:
             settings = json.load(f)
-        with open(f"{folder}/FeatureExtractor.pkl", 'rb') as f:
+        with open(os.path.join(folder, "FeatureExtractor.pkl"), 'rb') as f:
             feature_extractor = pickle.load(f)
         q_weights = np.load(filename)['q_weights']
         v_weights = np.load(filename)['v_weights']

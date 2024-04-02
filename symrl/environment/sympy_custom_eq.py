@@ -324,3 +324,8 @@ if __name__ == "__main__":
     print("Created equation:", eqn)
     eqn = eqn.rewrite('move_terms', var='x')
     print("After move_terms(x):", eqn)
+    print("Divide by coeff test")
+    eqn = create_eqn('x = 3 - 2')
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('divide_by_coeff', var='x')
+    print("After divide_by_coeff(x):", eqn)

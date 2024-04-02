@@ -120,14 +120,15 @@ class BaseFuncApproximator(ABC):
         """
         pass
 
-    def load(self, folder):
+    def load(folder):
+        import os
         try:
             from .linear_fun_approx import LinearFuncApproximator
             from .nn_fun_approx import NeuralFuncApproximator
         except ImportError:
             from linear_fun_approx import LinearFuncApproximator
             from nn_fun_approx import NeuralFuncApproximator
-        with open(f"{folder}/Settings.json", 'r') as f:
+        with open(os.path.join(folder, "Settings.json"), 'r') as f:
             settings = json.load(f)
         if settings["type"] == "LinearFuncApproximator":
             func_approximator = LinearFuncApproximator.load(folder)

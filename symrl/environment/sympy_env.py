@@ -42,7 +42,6 @@ class SympyEnv(gym.Env):
         self.action_space = EqRewriteActionSpace(supported_vars='x') if action_space is None else action_space
         self.observation_space = None
         self.reward_range = (0, 1)
-        self.gui : SympyEnvGUI = None
         self.randomize_eqn = randomize_eqn
         self.eqn_idx = -1
         self.eqn_solved_count = [0] * len(equation_strs)
@@ -55,7 +54,7 @@ class SympyEnv(gym.Env):
     
     def step(self, action):
         trunction_reward = -1
-        success_reward = 5
+        success_reward = 1
         failure_reward = -1
         if self.maximum_step_limit is not None and self.step_count >= self.maximum_step_limit:
             info = {
@@ -75,19 +74,30 @@ class SympyEnv(gym.Env):
                 self.equation = self.equation.rewrite(full_action_type, var=var)
             except AttributeError:
                 raise ValueError(f"Invalid action type: {action_type}")
+            except Exception as e:
+                print(f"Error in rewriting equation: {e}")
+                raise
             done = self.is_solved()
             if done:
                 self.eqn_solved_count[self.eqn_idx] += 1
                 self.solved_eqns[self.eqn_idx] = True
             # Reward incentivizes solving the equation quickly and solving more equations
-            reward = (success_reward/self.eqn_solved_count[self.eqn_idx] + success_reward/self.step_count) if done else failure_reward
+            uniqueness_reward = success_reward if self.eqn_solved_count[self.eqn_idx] <= 5 else 0
+            step_reward = success_reward/self.step_count if self.step_count > 0 else 0
+            reward = (uniqueness_reward + step_reward) if done else failure_reward
             self.step_count += 1
             info = {
                 "solved_eqns_count": float(np.sum(self.solved_eqns)),
             }
             return self.equation, reward, done, False, info
 
-    def reset(self):
+    def reset(self, new_eqns=None):
+        if new_eqns is not None:
+            assert isinstance(new_eqns, list), "Equations should be a list of strings"
+            assert all(isinstance(eqn, str) for eqn in new_eqns), "Equations should be a list of strings"
+            assert len(new_eqns) > 0, "At least one equation should be provided"
+            self.equation_strs = new_eqns
+            self.eqn_idx = -1
         # Select a new equation randomly
         if self.randomize_eqn:
             self.eqn_idx = np.random.randint(0, len(self.equation_strs))
@@ -103,13 +113,7 @@ class SympyEnv(gym.Env):
         return SympyEnv._check_solved(self.equation)
     
     def render(self, info=None):
-        if self.gui is not None:
-            # Update the GUI with the current equation
-            self.gui.latest_equation.append(str(self.equation) + str(info))
-            self.gui.update_gui_with_latest_equation()
-        else:
-            # Fallback to console printing if GUI is not used
-            print(self.equation)
+        print(self.equation)
     
     def __enter__(self):
         return self

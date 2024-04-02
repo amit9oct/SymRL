@@ -9,6 +9,7 @@ except ImportError:
     from base_approx import BaseFuncApproximator, FeatureExtractor
 import pickle
 import json
+import os
 
 class NeuralFuncApproximator(BaseFuncApproximator):
     def __init__(self, feature_extractor, num_features, num_actions, learning_rate=0.01):
@@ -167,12 +168,12 @@ class NeuralFuncApproximator(BaseFuncApproximator):
     @staticmethod
     def load(folder):
         # Load settings
-        settings_filename = f"{folder}/Settings.json"
+        settings_filename = os.path.join(folder, "Settings.json")
         with open(settings_filename, 'r') as f:
             settings = json.load(f)
         
         # Load feature extractor
-        feature_extractor_filename = f"{folder}/FeatureExtractor.pkl"
+        feature_extractor_filename = os.path.join(folder, "FeatureExtractor.pkl")   #f"{folder}/FeatureExtractor.pkl"
         with open(feature_extractor_filename, 'rb') as f:
             feature_extractor = pickle.load(f)
         
@@ -184,7 +185,7 @@ class NeuralFuncApproximator(BaseFuncApproximator):
             settings["learning_rate"])
         
         # Load model weights
-        model_filename = f"{folder}/NNModel.pth"
+        model_filename = os.path.join(folder, "NNModel.pth")
         approximator.model.load_state_dict(torch.load(model_filename, map_location=approximator.device))
         
         return approximator
