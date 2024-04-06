@@ -16,8 +16,7 @@ try:
 except ImportError:
     from run_learning import run_policy
 
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-print(os.getcwd())
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 train_eqns = [
     "7*x - 8*x - 3 = -8 - 6",
@@ -163,7 +162,7 @@ num_actions = len(action_space.actions)
 alpha = 1e-3
 maximum_step_limit = 20
 num_episodes = 75000
-render = True
+log = True
 gamma = 0.9
 eps = 0.25
 args = ArgumentParser()
@@ -172,22 +171,24 @@ args.add_argument("--alpha", type=float, default=alpha)
 args.add_argument("--maximum_step_limit", type=int, default=maximum_step_limit)
 args.add_argument("--gamma", type=float, default=gamma)
 args.add_argument("--eps", type=float, default=eps)
-args.add_argument("--render", type=bool, default=render)
-args.add_argument("--do_train", type=bool, default=True)
-args.add_argument("--do_test", type=bool, default=True)
-args.add_argument("--load", type=bool, default=False)
+args.add_argument("--log", type=bool, default=log)
+args.add_argument("--do_train", type=bool, default=False)
+args.add_argument("--do_test", type=bool, default=False)
+args.add_argument("--load", type=bool, default=True)
 args.add_argument("--func_approx", type=str, default="lin")
 args.add_argument("--algo", type=str, default="td")
-args.add_argument("--gui", type=bool, default=False)
+args.add_argument("--gui", type=bool, default=True)
+args.add_argument("--feat_ex", type=str, default="op_var_count")
+args.add_argument("--num_features", type=int, default=4)
 # args.add_argument("--folder", type=str, default=os.path.join(".log", "train__approx_nn__td__eps", "20240331_025235", "model"))
-args.add_argument("--folder", type=str, default=r"D:\Documents\Local\Source\RL\Project_Proposal\.logs\train__approx_nn__td__eps\20240331_025235\model")
+args.add_argument("--folder", type=str, default=r".logs\train__op_var_count_lin__td__eps\20240402_181430\model")
 args = args.parse_args()
 num_episodes = args.num_episodes
 alpha = args.alpha
 maximum_step_limit = args.maximum_step_limit
 gamma = args.gamma
 eps = args.eps
-render = args.render
+log = args.log
 load_from_file = args.load
 do_train = args.do_train
 do_test = args.do_test
@@ -195,6 +196,8 @@ func_approx_type = args.func_approx
 algo_type = args.algo
 launch_gui = args.gui
 model_folder = args.folder
+feat_ex_type = args.feat_ex
+num_features = args.num_features
 if launch_gui:
     os.environ["KIVY_NO_ARGS"] = "1"
     os.environ["KIVY_NO_CONSOLELOG"] = "1"
@@ -206,22 +209,26 @@ test_env = SympyEnv(test_equations, maximum_step_limit=maximum_step_limit, actio
 if load_from_file:
     func_approx = BaseFuncApproximator.load(model_folder)
 else:
+    if feat_ex_type == "fourier":
+        feat_ex = FourierFeatureExtractor(train_env, n_features=num_features)
+    elif feat_ex_type == "op_count":
+        feat_ex = OpCountFeatureExtractor(train_env)
+        num_features = 2
+    elif feat_ex_type == "op_var_count":
+        feat_ex = OpVarCountFeatureExtractor(train_env)
+        num_features = 4
+    else:
+        raise ValueError(f"Invalid feature extractor type: {feat_ex_type}")
     if func_approx_type == "nn":
         func_approx = NeuralFuncApproximator(
-            feature_extractor=OpVarCountFeatureExtractor(train_env), 
-            num_features=4, 
+            feature_extractor=feat_ex,
+            num_features=num_features,
             num_actions=num_actions, 
             learning_rate=alpha)
     elif func_approx_type == "lin":
-        # func_approx = LinearFuncApproximator(
-        #     feature_extractor=OpVarCountFeatureExtractor(train_env), 
-        #     num_features=4, 
-        #     num_actions=num_actions, 
-        #     learning_rate=alpha, 
-        #     random_init=False)
         func_approx = LinearFuncApproximator(
-            feature_extractor=FourierFeatureExtractor(train_env, n_features=10, sigma=1.0),
-            num_features=10, 
+            feature_extractor=feat_ex, 
+            num_features=num_features,
             num_actions=num_actions, 
             learning_rate=alpha, 
             random_init=False)
@@ -234,8 +241,8 @@ elif algo_type == "mc":
 else:
     raise ValueError(f"Invalid algorithm type: {algo_type}")
 policy = EpsilonGreedyPolicy(epsilon=eps, num_actions=num_actions, func_approximator=func_approx)
-train_prefix = f"train__approx_nn__{algo_type}__eps"
-test_prefix = f"test__approx_nn__{algo_type}__gr"
+train_prefix = f"train__{feat_ex_type}_{func_approx_type}__{algo_type}__eps"
+test_prefix = f"test__{feat_ex_type}_{func_approx_type}__{algo_type}__gr"
 gui_callback = None
 app = None
 
@@ -249,7 +256,7 @@ def train():
                     algo, 
                     episodes=num_episodes, 
                     learn=True, 
-                    log=render, 
+                    log=log, 
                     log_file_prefix=train_prefix, 
                     render_func_action_callback=gui_callback)
         except Exception as e:
@@ -264,7 +271,7 @@ def test():
         try:
             greedy_policy = GreedyPolicy(num_actions=num_actions, func_approximator=func_approx)
             with test_env:
-                run_policy(test_env, greedy_policy, None, episodes=len(test_env.equation_strs), learn=False, log=render, log_file_prefix=test_prefix, render_func_action_callback=gui_callback)
+                run_policy(test_env, greedy_policy, None, episodes=len(test_env.equation_strs), learn=False, log=log, log_file_prefix=test_prefix, render_func_action_callback=gui_callback)
         except Exception as e:
             print(e)
             pass

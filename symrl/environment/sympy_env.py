@@ -2,10 +2,8 @@ import gymnasium as gym
 import numpy as np
 try:
     from .sympy_custom_eq import CustomEq, create_eqn, get_op_count, get_var_count, get_term_count
-    from .sympy_env_gui import SympyEnvGUI
 except ImportError:
     from sympy_custom_eq import CustomEq, create_eqn, get_op_count, get_var_count, get_term_count
-    from sympy_env_gui import SympyEnvGUI
 
 class EqRewriteActionSpace(gym.Space):
     """
@@ -13,11 +11,19 @@ class EqRewriteActionSpace(gym.Space):
     """
     def __init__(self, supported_vars="abcdefghijklmnopqrstuvwxyz"):
         super(EqRewriteActionSpace, self).__init__((), np.int64)
-        self.action_types = ["collect", "move_terms", "divide_by_coeff", "simplify_identity", "collect_constants", "move_constant"]
-        self.action_types_short = ["CL", "MV", "DIV", "SIM", "CLC", "MVC"]
+        self.action_types = [
+            "collect", 
+            "move_terms_rhs", 
+            "move_terms_lhs", 
+            "divide_by_coeff", 
+            "simplify_identity", 
+            "collect_constants", 
+            "move_constant_rhs", 
+            "move_constant_lhs"]
+        self.action_types_short = ["CLV", "MVR", "MVL", "DIV", "SIM", "CLC", "MCR", "MCL"]
         self.action_types_map = {short: action for short, action in zip(self.action_types_short, self.action_types)}
-        self.actions = [f"{action}({var})" for action in self.action_types_short[:-2] for var in supported_vars]
-        self.actions += ["CL(C)", "MV(C)"]
+        self.actions = [f"{action}({var})" for action in self.action_types_short[:-4] for var in supported_vars]
+        self.actions += ["SIM(C)", "CLC(C)", "MCR(C)", "MCL(C)"]
 
     def sample(self):
         # Randomly sample an action

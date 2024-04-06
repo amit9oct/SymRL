@@ -3,13 +3,18 @@ from sympy_addons import customize_rewrite
 
 class CustomEq(Eq):
     C = sympify('C')
-    def __new__(cls, lhs, rhs, **options):
+    def __new__(cls, lhs, rhs, simplify_identity = False, **options):
         lhs = lhs
         rhs = rhs
+        if simplify_identity:
+            lhs = CustomEq.simplify_identity(lhs)
+            rhs = CustomEq.simplify_identity(rhs)
         return Eq.__new__(cls, lhs, rhs, **options)
 
     def postorder_traversal(expr, expr_op, parent=None):
         new_args = []
+        if not hasattr(expr, 'args'):
+            return expr
         orig_args_count = len(expr.args)
         for arg in expr.args:
             new_arg = CustomEq.postorder_traversal(arg, expr_op, parent=expr)
@@ -121,21 +126,21 @@ class CustomEq(Eq):
             expr = CustomEq.postorder_traversal(expr, _transform)
         return expr, coeff
     
-    def simplify_identity(expr, var):
+    def simplify_identity(expr):
         def _match(term, parent):
             if term.is_Mul:
                 args = list(term.args)
-                if len(args) == 2 and var in args and 1 in args:
+                if 1 in args:
                     # Remove the 1 from the term
-                    new_term = simplify(term)
+                    new_term = term.func(*[arg for arg in args if arg != 1], evaluate=False)
                     return new_term
                 else:
                     return term
             elif term.is_Add:
                 args = list(term.args)
-                if len(args) == 2 and var in args and 0 in args:
+                if 0 in args:
                     # Remove the 0 from the term
-                    new_term = simplify(term)
+                    new_term = term.func(*[arg for arg in args if arg != 0], evaluate=False)
                     return new_term
                 else:
                     return term
@@ -167,12 +172,12 @@ class CustomEq(Eq):
         else:
             return rewrite_res, simplify(constant)
 
-    def move_terms_rewriter(*args, **kwargs):
+    def move_terms_rewriter_rhs(*args, **kwargs):
         var_name = kwargs.get('var', None)
         assert var_name is not None, 'Variable name not provided'
         lhs, rhs = args
         if var_name == 'C':
-            return CustomEq.move_constant_rewriter(*args, **kwargs)
+            return CustomEq.move_constant_rewriter_rhs(*args, **kwargs)
         else:
             # Match the last coefficient of the variable in the lhs
             var = sympify(var_name, evaluate=False)
@@ -182,16 +187,41 @@ class CustomEq(Eq):
             else:
                 new_lhs = lhs
                 new_rhs = rhs
-            return CustomEq(new_lhs, new_rhs, evaluate=False)
+            return CustomEq(new_lhs, new_rhs, simplify_identity=True, evaluate=False)
     
-    def move_constant_rewriter(*args, **kwargs):
+    def move_terms_rewriter_lhs(*args, **kwargs):
+        var_name = kwargs.get('var', None)
+        assert var_name is not None, 'Variable name not provided'
+        lhs, rhs = args
+        if var_name == 'C':
+            return CustomEq.move_constant_rewriter_lhs(*args, **kwargs)
+        else:
+            var = sympify(var_name, evaluate=False)
+            new_rhs, dropped_term = CustomEq.drop_coeff_with_var(rhs, var)
+            if dropped_term is not None:
+                new_lhs = CustomEq.add_term(lhs, -dropped_term)
+            else:
+                new_lhs = lhs
+                new_rhs = rhs
+            return CustomEq(new_lhs, new_rhs, simplify_identity=True, evaluate=False)
+    
+    def move_constant_rewriter_rhs(*args, **kwargs):
         lhs, rhs = args
         new_lhs, constant = CustomEq.move_constant(lhs)
         if constant != 0:
             new_rhs = CustomEq.add_term(rhs, -constant)
         else:
             new_rhs = rhs
-        return CustomEq(new_lhs, new_rhs, evaluate=False)
+        return CustomEq(new_lhs, new_rhs, simplify_identity=True, evaluate=False)
+    
+    def move_constant_rewriter_lhs(*args, **kwargs):
+        lhs, rhs = args
+        new_rhs, constant = CustomEq.move_constant(rhs)
+        if constant != 0:
+            new_lhs = CustomEq.add_term(lhs, constant)
+        else:
+            new_lhs = lhs
+        return CustomEq(new_lhs, new_rhs, simplify_identity=True, evaluate=False)
 
     def collect_rewriter(*args, **kwargs):
         var_name = kwargs.get('var', None)
@@ -203,7 +233,7 @@ class CustomEq(Eq):
             lhs, rhs = args
             lhs = CustomEq.collect_coeff_with_var(lhs, var)
             rhs = CustomEq.collect_coeff_with_var(rhs, var)
-            return CustomEq(lhs, rhs, evaluate=False)
+            return CustomEq(lhs, rhs, simplify_identity=True, evaluate=False)
     
     def divide_by_coeff_rewriter(*args, **kwargs):
         var_name = kwargs.get('var', None)
@@ -214,15 +244,12 @@ class CustomEq(Eq):
         lhs, coeff = CustomEq.divide_by_coeff(lhs, var)
         if coeff != 1 and coeff != 0:
             rhs, _ = CustomEq.divide_by_coeff(rhs, var, coeff=coeff)
-        return CustomEq(lhs, rhs, fresh=False, evaluate=False)
+        return CustomEq(lhs, rhs, simplify_identity=True, evaluate=False)
     
     def simplify_identity_rewriter(*args, **kwargs):
-        var_name = kwargs.get('var', None)
-        assert var_name is not None, 'Variable name not provided'
-        var = sympify(var_name, evaluate=False)
         lhs, rhs = args
-        lhs = CustomEq.simplify_identity(lhs, var)
-        rhs = CustomEq.simplify_identity(rhs, var)
+        lhs = CustomEq.simplify_identity(lhs)
+        rhs = CustomEq.simplify_identity(rhs)
         # Since the constant has been removed, add it back to the equation
         return CustomEq(lhs, rhs, evaluate=False)
         
@@ -243,11 +270,13 @@ class CustomEq(Eq):
     def set_rewrite_rules():
         customize_rewrite(CustomEq)
         CustomEq.rewrite_manager.add_rule('collect', CustomEq.collect_rewriter)
-        CustomEq.rewrite_manager.add_rule('move_terms', CustomEq.move_terms_rewriter)
+        CustomEq.rewrite_manager.add_rule('move_terms_rhs', CustomEq.move_terms_rewriter_rhs)
+        CustomEq.rewrite_manager.add_rule('move_terms_lhs', CustomEq.move_terms_rewriter_lhs)
         CustomEq.rewrite_manager.add_rule('divide_by_coeff', CustomEq.divide_by_coeff_rewriter)
         CustomEq.rewrite_manager.add_rule('simplify_identity', CustomEq.simplify_identity_rewriter)
         CustomEq.rewrite_manager.add_rule('collect_constants', CustomEq.collect_constants_rewriter)
-        CustomEq.rewrite_manager.add_rule('move_constant', CustomEq.move_constant_rewriter)
+        CustomEq.rewrite_manager.add_rule('move_constant_rhs', CustomEq.move_constant_rewriter_rhs)
+        CustomEq.rewrite_manager.add_rule('move_constant_lhs', CustomEq.move_constant_rewriter_lhs)
 
 CustomEq.set_rewrite_rules()
 
@@ -282,12 +311,12 @@ def get_term_count(eqn: CustomEq):
 if __name__ == "__main__":
     eqn = create_eqn('3*y + 2*x + 1 + 5 = 4*y + 0 + 2*(y - 4)')
     print("Created equation:", eqn)
-    eqn = eqn.rewrite('move_terms', var='y')
+    eqn = eqn.rewrite('move_terms_rhs', var='y')
     print("After move_terms(y):", eqn)
     eqn = eqn.rewrite('collect', var='y')
     print("After collect(y):", eqn)
-    eqn = eqn.rewrite('simplify_identity', var='y')
-    print("After simplify_identity(y):", eqn)
+    eqn = eqn.rewrite('simplify_identity')
+    print("After simplify_identity:", eqn)
     eqn = eqn.rewrite('divide_by_coeff', var='x')
     print("After divide_by_coeff(x):", eqn)
     eqn = eqn.rewrite('collect_constants')
@@ -296,7 +325,7 @@ if __name__ == "__main__":
     print("After collect(y):", eqn)
     eqn = eqn.rewrite('collect_constants')
     print("After collect_constants:", eqn)
-    eqn = eqn.rewrite('move_constant')
+    eqn = eqn.rewrite('move_constant_rhs')
     print("After move_constant:", eqn)
     eqn = eqn.rewrite('collect_constants')
     print("After collect_constants:", eqn)
@@ -316,16 +345,24 @@ if __name__ == "__main__":
     eqn = create_eqn('5 - 4*x = -6*x - 6 - 4')
     print("Var count:", get_var_count(eqn, 'x'))
     print("Created equation:", eqn)
-    eqn = eqn.rewrite('move_terms', var='x')
+    eqn = eqn.rewrite('move_terms_rhs', var='x')
     print("After move_terms(x):", eqn)
     eqn = create_eqn('5 - 4*x + 3*x = -6*x - 6 - 4')
     print("Var count:", get_var_count(eqn, 'x'))
     print("Term count:", get_term_count(create_eqn('5 - 4*x + 3*x = -6*x - 6 - 4')))
     print("Created equation:", eqn)
-    eqn = eqn.rewrite('move_terms', var='x')
+    eqn = eqn.rewrite('move_terms_rhs', var='x')
     print("After move_terms(x):", eqn)
     print("Divide by coeff test")
     eqn = create_eqn('x = 3 - 2')
     print("Created equation:", eqn)
     eqn = eqn.rewrite('divide_by_coeff', var='x')
     print("After divide_by_coeff(x):", eqn)
+    eqn = create_eqn('3*x = 3')
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('move_terms_rhs', var='x')
+    print("After move_terms(x):", eqn)
+    eqn = eqn.rewrite('move_terms_lhs', var='x')
+    print("After move_terms(x):", eqn)
+    eqn = eqn.rewrite('simplify_identity')
+    print("After simplify_identity:", eqn)
