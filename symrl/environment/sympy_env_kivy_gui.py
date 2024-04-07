@@ -89,7 +89,7 @@ class EquationGUI(BoxLayout):
         self.add_widget(self.solution_scroll)
         self.solution_scroll.update_text(self.solution_text)
 
-        self.buttons_grid = GridLayout(cols=6, size_hint_y=None, height=100)
+        self.buttons_grid = GridLayout(cols=8, size_hint_y=None, height=100)
         self.add_widget(self.buttons_grid)
         self.actions = self.env.action_space.actions
         self.action_index_map = {action: i for i, action in enumerate(self.actions)}

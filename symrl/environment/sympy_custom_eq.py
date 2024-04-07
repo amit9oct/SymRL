@@ -218,7 +218,7 @@ class CustomEq(Eq):
         lhs, rhs = args
         new_rhs, constant = CustomEq.move_constant(rhs)
         if constant != 0:
-            new_lhs = CustomEq.add_term(lhs, constant)
+            new_lhs = CustomEq.add_term(lhs, -constant)
         else:
             new_lhs = lhs
         return CustomEq(new_lhs, new_rhs, simplify_identity=True, evaluate=False)
@@ -366,3 +366,8 @@ if __name__ == "__main__":
     print("After move_terms(x):", eqn)
     eqn = eqn.rewrite('simplify_identity')
     print("After simplify_identity:", eqn)
+    eqn = create_eqn('x = 3/2')
+    print("Created equation:", eqn)
+    print("Op count:", get_op_count(eqn))
+    print("Var count:", get_var_count(eqn, 'x'))
+    print("Term count:", get_term_count(eqn))

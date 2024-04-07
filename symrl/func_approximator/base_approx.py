@@ -1,7 +1,12 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 import json
 
 class FeatureExtractor(ABC):
+    @property
+    @abstractmethod
+    def num_features(self):
+        pass
+
     @abstractmethod
     def __call__(self, *args, **kwds):
         return super().__call__(*args, **kwds)
@@ -20,7 +25,8 @@ class FeatureExtractor(ABC):
 
 class BaseFuncApproximator(ABC):
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def feature_extractor(self) -> FeatureExtractor:
         pass
 

@@ -5,12 +5,15 @@ from algorithms.td_zero import TDZero
 from algorithms.mc import MonteCarlo
 from func_approximator.linear_fun_approx import LinearFuncApproximator
 from func_approximator.nn_fun_approx import NeuralFuncApproximator
-from func_approximator.base_approx import FeatureExtractor, BaseFuncApproximator
+from func_approximator.base_approx import BaseFuncApproximator
+from func_approximator.op_count import OpCountFeatureExtractor
+from func_approximator.op_var_count import OpVarCountFeatureExtractor
+from func_approximator.fourier_features import FourierFeatureExtractor
 import threading
-import numpy as np
 import os
 import time
 from argparse import ArgumentParser
+
 try:
     from .run_learning import run_policy
 except ImportError:
@@ -74,97 +77,14 @@ test_equations = [
     "7*x - 9*x + 10 = 2 + 6"
 ]
 
-class OpCountFeatureExtractor(FeatureExtractor):
-    def __init__(self, env: SympyEnv):
-        self.env = env
-
-    def __call__(self, observation):
-        lhs, rhs = SympyEnv.get_lhs_rhs_op_count(observation)
-        return np.array([lhs, rhs])
-    
-    def pretty_print_feature_extractor(self) -> str:
-        feature_names = ["op_count_lhs", "op_count_rhs"]
-        return str(feature_names)
-    
-    def pretty_print_state(self, state) -> str:
-        state_str = str(self(state))
-        return state_str
-    
-    def pretty_print_action(self, action) -> str:
-        action_str = self.env.action_space.actions[action]
-        return action_str
-
-class OpVarCountFeatureExtractor(FeatureExtractor):
-    def __init__(self, env: SympyEnv):
-        self.env = env
-
-    def __call__(self, observation):
-        lhs_term_cnt, rhs_term_cnt = SympyEnv.get_lhs_rhs_term_count(observation)
-        lhs_op_cnt, rhs_op_cnt = SympyEnv.get_lhs_rhs_op_count(observation)
-        lhs, rhs = (lhs_term_cnt + lhs_op_cnt), (rhs_term_cnt + rhs_op_cnt)
-        lhs_var_count, rhs_var_count = SympyEnv.get_lhs_rhs_var_count(observation)
-        return np.array([lhs, rhs, lhs_var_count, rhs_var_count])
-
-    def pretty_print_feature_extractor(self) -> str:
-        feature_names = ["lhs_term_count", "rhs_term_count", "lhs_var_count", "rhs_var_count"]
-        return str(feature_names)
-    
-    def pretty_print_state(self, state) -> str:
-        state_str = str(self(state))
-        return state_str
-    
-    def pretty_print_action(self, action) -> str:
-        action_str = self.env.action_space.actions[action]
-        return action_str
-
-class FourierFeatureExtractor:
-    def __init__(self, env: SympyEnv, n_features=10, sigma=1.0):
-        self.n_features = n_features
-        self.sigma = sigma # Scale of the random transformation
-        # Assuming 4 base features: ["lhs_term_count", "rhs_term_count", "lhs_var_count", "rhs_var_count"]
-        # Initialize random weights for each base feature for the transformation
-        self.weights = np.random.randn(4, n_features) * sigma
-        self.original_feature_names = ["lhs_term_count", "rhs_term_count", "lhs_var_count", "rhs_var_count"]
-        self.env = env
-
-    def __call__(self, observation):
-        lhs_term_cnt, rhs_term_cnt = SympyEnv.get_lhs_rhs_term_count(observation)
-        lhs_op_cnt, rhs_op_cnt = SympyEnv.get_lhs_rhs_op_count(observation)
-        lhs, rhs = (lhs_term_cnt + lhs_op_cnt), (rhs_term_cnt + rhs_op_cnt)
-        lhs_var_count, rhs_var_count = SympyEnv.get_lhs_rhs_var_count(observation)
-        # Ensure observation is a numpy array
-        observation = np.array([lhs, rhs, lhs_var_count, rhs_var_count])
-        # Normalize the observation to ensure the Fourier features are bounded
-        norm_obs = (observation - np.mean(observation)) / (np.std(observation) + 1e-7)
-        # Compute the transformation
-        transformed_obs = np.dot(norm_obs, self.weights)
-        # Apply the sinusoidal function to get the Fourier features
-        fourier_features = np.cos(transformed_obs)
-        return fourier_features.flatten()
-
-    def pretty_print_feature_extractor(self):
-        feature_descriptions = []
-        for original_feature in self.original_feature_names:
-            for i in range(self.n_features):
-                feature_descriptions.append(f"{original_feature}_fourier_feature_{i}")
-        return ", ".join(feature_descriptions)
-    
-    def pretty_print_state(self, state) -> str:
-        state_str = str(self(state))
-        return state_str
-    
-    def pretty_print_action(self, action) -> str:
-        action_str = self.env.action_space.actions[action]
-        return action_str
-
 action_space = EqRewriteActionSpace(supported_vars="x")
 num_actions = len(action_space.actions)
-alpha = 1e-3
+alpha = 3e-4
 maximum_step_limit = 20
-num_episodes = 75000
+num_episodes = 100000
 log = True
 gamma = 0.9
-eps = 0.25
+eps = 0.2
 args = ArgumentParser()
 args.add_argument("--num_episodes", type=int, default=num_episodes)
 args.add_argument("--alpha", type=float, default=alpha)
@@ -172,14 +92,15 @@ args.add_argument("--maximum_step_limit", type=int, default=maximum_step_limit)
 args.add_argument("--gamma", type=float, default=gamma)
 args.add_argument("--eps", type=float, default=eps)
 args.add_argument("--log", type=bool, default=log)
-args.add_argument("--do_train", type=bool, default=False)
-args.add_argument("--do_test", type=bool, default=False)
-args.add_argument("--load", type=bool, default=True)
+args.add_argument("--do_train", type=bool, default=True)
+args.add_argument("--do_test", type=bool, default=True)
+args.add_argument("--load", type=bool, default=False)
 args.add_argument("--func_approx", type=str, default="lin")
 args.add_argument("--algo", type=str, default="td")
-args.add_argument("--gui", type=bool, default=True)
+args.add_argument("--gui", type=bool, default=False)
 args.add_argument("--feat_ex", type=str, default="op_var_count")
 args.add_argument("--num_features", type=int, default=4)
+args.add_argument("--verbose", type=bool, default=False)
 # args.add_argument("--folder", type=str, default=os.path.join(".log", "train__approx_nn__td__eps", "20240331_025235", "model"))
 args.add_argument("--folder", type=str, default=r".logs\train__op_var_count_lin__td__eps\20240402_181430\model")
 args = args.parse_args()
@@ -198,6 +119,7 @@ launch_gui = args.gui
 model_folder = args.folder
 feat_ex_type = args.feat_ex
 num_features = args.num_features
+verbose = args.verbose
 if launch_gui:
     os.environ["KIVY_NO_ARGS"] = "1"
     os.environ["KIVY_NO_CONSOLELOG"] = "1"
@@ -213,10 +135,10 @@ else:
         feat_ex = FourierFeatureExtractor(train_env, n_features=num_features)
     elif feat_ex_type == "op_count":
         feat_ex = OpCountFeatureExtractor(train_env)
-        num_features = 2
+        num_features = feat_ex.num_features
     elif feat_ex_type == "op_var_count":
         feat_ex = OpVarCountFeatureExtractor(train_env)
-        num_features = 4
+        num_features = feat_ex.num_features
     else:
         raise ValueError(f"Invalid feature extractor type: {feat_ex_type}")
     if func_approx_type == "nn":
@@ -258,7 +180,8 @@ def train():
                     learn=True, 
                     log=log, 
                     log_file_prefix=train_prefix, 
-                    render_func_action_callback=gui_callback)
+                    render_func_action_callback=gui_callback,
+                    verbose=verbose)
         except Exception as e:
             print(e)
             pass
@@ -271,7 +194,16 @@ def test():
         try:
             greedy_policy = GreedyPolicy(num_actions=num_actions, func_approximator=func_approx)
             with test_env:
-                run_policy(test_env, greedy_policy, None, episodes=len(test_env.equation_strs), learn=False, log=log, log_file_prefix=test_prefix, render_func_action_callback=gui_callback)
+                run_policy(
+                    test_env, 
+                    greedy_policy, 
+                    None, 
+                    episodes=len(test_env.equation_strs), 
+                    learn=False, 
+                    log=log, 
+                    log_file_prefix=test_prefix, 
+                    render_func_action_callback=gui_callback,
+                    verbose=verbose)
         except Exception as e:
             print(e)
             pass
