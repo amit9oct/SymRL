@@ -55,7 +55,7 @@ def generate_valid_linear_equations(num_equations, max_terms, seed=None, float_p
                 den = coefficient.split("/")[1]
                 term = f"{sign} x/{den}" if sign else f"x/{den}"
             else:
-                if coefficient_eval != 1 and coefficient_eval != -1:
+                if str(coefficient) != "1" and str(coefficient_eval) != "-1":
                     term += "*x"
                 else:
                     term = term.strip('1')
@@ -73,7 +73,7 @@ def generate_valid_linear_equations(num_equations, max_terms, seed=None, float_p
             num_terms_side = random.randint(1, num_terms - 1) if side == 'LHS' else num_terms - num_terms_side
             for _idx in range(num_terms_side):
                 with_x = random.choice([True, False]) or (total_coefficient == 0 and side == 'RHS')
-                term, coeff = add_term(with_x, equation, skip_zero= _idx != num_terms_side - 1 or side != 'RHS')
+                term, coeff = add_term(with_x, equation, skip_zero= _idx != num_terms_side - 1)
                 equation += " " + term if term else ""
                 total_coefficient += coeff if with_x else 0
 

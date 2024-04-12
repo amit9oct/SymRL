@@ -27,7 +27,8 @@ class EqRewriteActionSpace(gym.Space):
 
     def sample(self):
         # Randomly sample an action
-        return np.random.choice(self.actions)
+        # return one of the indices of the actions
+        return np.random.randint(0, len(self.actions))
 
     def contains(self, x):
         # Check if x is a valid action
@@ -60,7 +61,7 @@ class SympyEnv(gym.Env):
     
     def step(self, action):
         trunction_reward = -1
-        success_reward = 1
+        success_reward = 0
         failure_reward = -1
         if self.maximum_step_limit is not None and self.step_count >= self.maximum_step_limit:
             info = {
@@ -89,8 +90,9 @@ class SympyEnv(gym.Env):
                 self.solved_eqns[self.eqn_idx] = True
             # Reward incentivizes solving the equation quickly and solving more equations
             uniqueness_reward = success_reward if self.eqn_solved_count[self.eqn_idx] <= 5 else 0
-            step_reward = success_reward/self.step_count if self.step_count > 0 else 0
-            reward = (uniqueness_reward + step_reward) if done else failure_reward
+            step_reward = 0 # success_reward/self.step_count if self.step_count > 0 else 0
+            # reward = (uniqueness_reward + step_reward) if done else failure_reward
+            reward = success_reward if done else failure_reward
             self.step_count += 1
             info = {
                 "solved_eqns_count": float(np.sum(self.solved_eqns)),

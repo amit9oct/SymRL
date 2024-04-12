@@ -366,7 +366,7 @@ if __name__ == "__main__":
     print("After move_terms(x):", eqn)
     eqn = eqn.rewrite('simplify_identity')
     print("After simplify_identity:", eqn)
-    eqn = create_eqn('x = 3/2')
+    eqn = create_eqn('-6.08*x - 4*x - 2*x + 0.2*x + 8/4*x - 2 = -10*x - 7*x - x + 10*x + 1')
     print("Created equation:", eqn)
     print("Op count:", get_op_count(eqn))
     print("Var count:", get_var_count(eqn, 'x'))
