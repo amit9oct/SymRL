@@ -421,3 +421,8 @@ if __name__ == "__main__":
     print("Created equation:", eqn)
     eqn = eqn.rewrite('divide_by_coeff', var='x')
     print("After divide_by_coeff(x):", eqn)
+    eqn = create_eqn('-3*x + 4*x = -2*x + 4*x/2 + 7*x + 7*x + 8*x - 7/8 + 1/3 + 4')
+    eqn = eqn.rewrite('collect', var='x')
+    print("collect_variable: ", eqn)
+    eqn = eqn.rewrite('collect_constants')
+    print("collect_constants: ", eqn)

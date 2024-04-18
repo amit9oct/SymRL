@@ -21,11 +21,11 @@ class NeuralFuncApproximator(BaseFuncApproximator):
         
         # Define the neural network architecture
         self.model = nn.Sequential(
-            nn.Linear(num_features, 2),   # First hidden layer
+            nn.Linear(num_features, 8),   # First hidden layer
             nn.ReLU(),                    # Activation function
-            nn.Linear(2, 2),              # Second hidden layer
+            nn.Linear(8, 8),              # Second hidden layer
             nn.ReLU(),                    # Activation function
-            nn.Linear(2, num_actions)     # Output layer
+            nn.Linear(8, num_actions)     # Output layer
         )
         
         # Define the optimizer
@@ -95,6 +95,7 @@ class NeuralFuncApproximator(BaseFuncApproximator):
         return action_approx
 
     def pretty_print_approximator(self):
+        return "Neural Network Function Approximator with dimensions:\n" + str(self.num_features) + " -> 8 -> 8 -> " + str(self.num_actions)
         # # Assume 'feature_names' is a list of feature names from the feature extractor
         # feature_names = self.feature_extractor.pretty_print_feature_extractor()
         # # Convert the concatenated array style feature names to a list [a, b, c, ...]

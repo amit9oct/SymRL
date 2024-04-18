@@ -13,6 +13,8 @@ from func_approximator.op_var_count import OpVarCountFeatureExtractor
 from func_approximator.op_var_rel_count import OpVarRelCountFeatureExtractor
 from func_approximator.var_const_count import VarConstCountFeatureExtractor
 from func_approximator.term_var_const_count import TermVarConstCountFeatureExtractor
+from func_approximator.rel_term_var_const_count import RelTermVarConstCountFeatureExtractor
+from func_approximator.simplified_term_var_const_count import SimpleTermVarConstCountFeatureExtractor
 from func_approximator.fourier_features import FourierFeatureExtractor
 from tools.eqn_generator import generate_valid_linear_equations
 import threading
@@ -91,14 +93,6 @@ test_equations = [
 np.random.seed(42)
 # train_eqns = generate_valid_linear_equations(25, 8, 0xf00d, 0.12, 0.2)
 # test_equations = generate_valid_linear_equations(12, 10, 0xfead, 0.12, 0.2)
-train_eqns = generate_valid_linear_equations(2000, 10, 0xf00d, 0.12, 0.2)
-test_equations = generate_valid_linear_equations(25, 15, 0xfead, 0.12, 0.2)
-
-for eqn in train_eqns:
-    eqn = create_eqn(eqn) # Assert that the equation is valid
-
-for eqn in test_equations:
-    eqn = create_eqn(eqn) # Assert that the equation is valid
 
 action_space = EqRewriteActionSpace(supported_vars="x")
 num_actions = len(action_space.actions)
@@ -130,6 +124,13 @@ args.add_argument("--gui", type=bool, default=False)
 args.add_argument("--feat_ex", type=str, default="op_var_count")
 args.add_argument("--num_features", type=int, default=4)
 args.add_argument("--verbose", type=bool, default=False)
+args.add_argument("--exp_prefix", type=str, default="")
+args.add_argument("--train_cnt", type=int, default=250)
+args.add_argument("--test_cnt", type=int, default=25)
+args.add_argument("--train_max_terms", type=int, default=10)
+args.add_argument("--test_max_terms", type=int, default=15)
+args.add_argument("--float_prob", type=float, default=0.12)
+args.add_argument("--frac_prob", type=float, default=0.2)
 # args.add_argument("--folder", type=str, default=os.path.join(".log", "train__approx_nn__td__eps", "20240331_025235", "model"))
 args.add_argument("--folder", type=str, default=r".logs\train__op_var_count_lin__td__eps\20240402_181430\model")
 args = args.parse_args()
@@ -154,6 +155,21 @@ verbose = args.verbose
 random_test = args.do_random_test
 random_train = args.do_random_train
 sort_by_term_count = args.sort_by_term_count
+exp_prefix = args.exp_prefix
+train_cnt = args.train_cnt
+test_cnt = args.test_cnt
+train_max_terms = args.train_max_terms
+test_max_terms = args.test_max_terms
+float_prob = args.float_prob
+frac_prob = args.frac_prob
+train_eqns = generate_valid_linear_equations(train_cnt, train_max_terms, 0xf00d, float_prob, frac_prob)
+test_equations = generate_valid_linear_equations(test_cnt, test_max_terms, 0xfead, float_prob, frac_prob)
+
+for eqn in train_eqns:
+    eqn = create_eqn(eqn) # Assert that the equation is valid
+
+for eqn in test_equations:
+    eqn = create_eqn(eqn) # Assert that the equation is valid
 if sort_by_term_count:
     train_eqns = sorted(train_eqns, key=lambda x: len(x.split()))
     test_equations = sorted(test_equations, key=lambda x: len(x.split()))
@@ -185,6 +201,12 @@ else:
     elif feat_ex_type == "term_var_const_count":
         feat_ex = TermVarConstCountFeatureExtractor(train_env)
         num_features = feat_ex.num_features
+    elif feat_ex_type == "rel_term_var_const_count":
+        feat_ex = RelTermVarConstCountFeatureExtractor(train_env)
+        num_features = feat_ex.num_features
+    elif feat_ex_type == "simpl_term_var_const_count":
+        feat_ex = SimpleTermVarConstCountFeatureExtractor(train_env)
+        num_features = feat_ex.num_features
     else:
         raise ValueError(f"Invalid feature extractor type: {feat_ex_type}")
     if func_approx_type == "nn":
@@ -209,8 +231,8 @@ elif algo_type == "mc":
 else:
     raise ValueError(f"Invalid algorithm type: {algo_type}")
 policy = EpsilonGreedyPolicy(epsilon=eps, num_actions=num_actions, func_approximator=func_approx)
-train_prefix = f"train__{feat_ex_type}_{func_approx_type}__{algo_type}__eps"
-test_prefix = f"test__{feat_ex_type}_{func_approx_type}__{algo_type}__gr"
+train_prefix = f"{exp_prefix}_train__{feat_ex_type}_{func_approx_type}__{algo_type}__eps"
+test_prefix = f"{exp_prefix}_test__{feat_ex_type}_{func_approx_type}__{algo_type}__gr"
 gui_callback = None
 app = None
 

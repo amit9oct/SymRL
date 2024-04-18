@@ -138,10 +138,9 @@ class SympyEnv(gym.Env):
                 return lhs.name == 'x'
             elif lhs.is_Number and rhs.is_Number:
                 return lhs == rhs
-            elif lhs.is_Symbol and (str(rhs) == str(simplify(rhs))):
-                return lhs.name == 'x'
-            # elif lhs.is_Number and rhs.is_Symbol:
-            #     return rhs.name == 'x'
+            elif lhs.is_Symbol:
+                simpl_rhs = simplify(rhs)
+                return str(rhs) == str(simpl_rhs) and simpl_rhs.is_Number
             else:
                 return lhs == rhs # Reflexivity
         else:
@@ -184,6 +183,6 @@ class SympyEnv(gym.Env):
         return lhs, rhs
     
 if __name__ == "__main__":
-    eqn = create_eqn("x = -3/2")
+    eqn = create_eqn("x = 22*x + 83/24")
     eqn_solved = SympyEnv._check_solved(eqn)
     print(eqn_solved)
