@@ -292,6 +292,31 @@ def get_op_count(eqn: CustomEq):
     lhs, rhs = eqn.args
     return lhs.count_ops(), rhs.count_ops()
 
+def get_const_count(eqn: CustomEq):
+    def _count_constants(expr):
+        if expr.is_Atom:
+            if expr.is_Number:
+                return 1
+            else:
+                return 0
+        else:
+            count = 0
+            prod = 1
+            if expr.is_Mul:
+                for arg in expr.args:
+                    prod *= _count_constants(arg)
+                return prod
+            elif expr.is_Add:
+                for arg in expr.args:
+                    count += _count_constants(arg)
+                return count
+            elif expr.is_Pow:
+                return _count_constants(expr.base)*_count_constants(expr.exp)
+            else:
+                raise ValueError(f"Unknown expression type: {expr}")
+    lhs, rhs = eqn.args
+    return _count_constants(lhs), _count_constants(rhs)
+
 def get_var_count(eqn: CustomEq, var: str):
     lhs, rhs = eqn.args
     var = sympify(var, evaluate=False)
@@ -301,7 +326,7 @@ def get_term_count(eqn: CustomEq):
     lhs, rhs = eqn.args
     # recursively count the number of terms in the equation
     def _count_terms(expr):
-        if expr.is_Atom:
+        if expr.is_Atom or expr.is_Number:
             return 1
         else:
             return sum([_count_terms(arg) for arg in expr.args])
@@ -360,6 +385,8 @@ if __name__ == "__main__":
     print("After divide_by_coeff(x):", eqn)
     eqn = create_eqn('3*x = 3')
     print("Created equation:", eqn)
+    print("term count:", get_term_count(eqn))
+    print("term count:", get_term_count(create_eqn('x = -3/2')))
     eqn = eqn.rewrite('move_terms_rhs', var='x')
     print("After move_terms(x):", eqn)
     eqn = eqn.rewrite('move_terms_lhs', var='x')
@@ -367,7 +394,30 @@ if __name__ == "__main__":
     eqn = eqn.rewrite('simplify_identity')
     print("After simplify_identity:", eqn)
     eqn = create_eqn('-6.08*x - 4*x - 2*x + 0.2*x + 8/4*x - 2 = -10*x - 7*x - x + 10*x + 1')
+    print("Constant count:", get_const_count(eqn))
     print("Created equation:", eqn)
     print("Op count:", get_op_count(eqn))
     print("Var count:", get_var_count(eqn, 'x'))
     print("Term count:", get_term_count(eqn))
+    eqn = create_eqn('7*x/5 - 1*4 - 2/2 = -115/7')
+    print("Constant count:", get_const_count(eqn))
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('collect_constants')
+    print("After collect_constants:", eqn)
+    eqn = eqn.rewrite('move_constant_rhs')
+    print("After move_constant:", eqn)
+    print("Constant count:", get_const_count(eqn))
+    eqn = eqn.rewrite('collect_constants')
+    print("After collect_constants:", eqn)
+    eqn = eqn.rewrite('divide_by_coeff', var='x')
+    print("After divide_by_coeff(x):", eqn)
+    eqn = create_eqn('7*x/5 = -80/7')
+    print("Constant count:", get_const_count(eqn))
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('divide_by_coeff', var='x')
+    print("After divide_by_coeff(x):", eqn)
+    eqn = create_eqn('x = -80/7')
+    print("Constant count:", get_const_count(eqn))
+    print("Created equation:", eqn)
+    eqn = eqn.rewrite('divide_by_coeff', var='x')
+    print("After divide_by_coeff(x):", eqn)

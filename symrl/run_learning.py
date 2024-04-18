@@ -42,6 +42,7 @@ def run_policy(
     model_folder = f"{log_folder}/model"
     ckpt_folder = f"{model_folder}/ckpt"
     os.makedirs(ckpt_folder, exist_ok=True)
+    policy_logger.info(f"[START]:\nStarting policy = {policy}, RL Algorithm = {rl_algo}, Episodes = {episodes}, Learn = {learn}, Log = {log}, Log File Prefix = {log_file_prefix}, Time = {time_str}")
     avg_steps = 0
     for episode in range(episodes):
         state = env.reset()

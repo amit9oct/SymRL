@@ -1,9 +1,10 @@
 import gymnasium as gym
 import numpy as np
+from sympy import simplify
 try:
-    from .sympy_custom_eq import CustomEq, create_eqn, get_op_count, get_var_count, get_term_count
+    from .sympy_custom_eq import CustomEq, create_eqn, get_op_count, get_var_count, get_term_count, get_const_count
 except ImportError:
-    from sympy_custom_eq import CustomEq, create_eqn, get_op_count, get_var_count, get_term_count
+    from sympy_custom_eq import CustomEq, create_eqn, get_op_count, get_var_count, get_term_count, get_const_count
 
 class EqRewriteActionSpace(gym.Space):
     """
@@ -132,13 +133,15 @@ class SympyEnv(gym.Env):
     @staticmethod
     def _check_solved(eqn):
         lhs, rhs = eqn.args
-        if lhs.is_Atom and rhs.is_Atom:
+        if lhs.is_Atom:
             if lhs.is_Symbol and rhs.is_Number:
                 return lhs.name == 'x'
-            elif lhs.is_Number and rhs.is_Symbol:
-                return rhs.name == 'x'
             elif lhs.is_Number and rhs.is_Number:
                 return lhs == rhs
+            elif lhs.is_Symbol and (str(rhs) == str(simplify(rhs))):
+                return lhs.name == 'x'
+            # elif lhs.is_Number and rhs.is_Symbol:
+            #     return rhs.name == 'x'
             else:
                 return lhs == rhs # Reflexivity
         else:
@@ -171,6 +174,16 @@ class SympyEnv(gym.Env):
         return lhs, rhs
     
     @staticmethod
+    def get_lhs_rhs_const_count(observation):
+        lhs, rhs = get_const_count(observation)
+        return lhs, rhs
+    
+    @staticmethod
     def get_lhs_rhs_term_count(observation):
         lhs, rhs = get_term_count(observation)
         return lhs, rhs
+    
+if __name__ == "__main__":
+    eqn = create_eqn("x = -3/2")
+    eqn_solved = SympyEnv._check_solved(eqn)
+    print(eqn_solved)

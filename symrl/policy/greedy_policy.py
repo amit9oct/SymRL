@@ -51,3 +51,6 @@ class GreedyPolicy(BasePolicy):
         with open(filename, 'r') as f:
             settings = json.load(f)
         return GreedyPolicy(settings["num_actions"], func_approximator, settings["break_ties_randomly"])
+    
+    def __str__(self) -> str:
+        return "Greedy Policy"

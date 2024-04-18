@@ -106,3 +106,6 @@ class LinearFuncApproximator(BaseFuncApproximator):
         func_approximator.q_weights = q_weights
         func_approximator.v_weights = v_weights
         return func_approximator
+    
+    def __str__(self) -> str:
+        return f"LinearFuncApproximator(num_features={self.num_features}, num_actions={self.num_actions}, learning_rate={self.learning_rate})"

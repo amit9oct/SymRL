@@ -10,6 +10,9 @@ from func_approximator.nn_fun_approx import NeuralFuncApproximator
 from func_approximator.base_approx import BaseFuncApproximator
 from func_approximator.op_count import OpCountFeatureExtractor
 from func_approximator.op_var_count import OpVarCountFeatureExtractor
+from func_approximator.op_var_rel_count import OpVarRelCountFeatureExtractor
+from func_approximator.var_const_count import VarConstCountFeatureExtractor
+from func_approximator.term_var_const_count import TermVarConstCountFeatureExtractor
 from func_approximator.fourier_features import FourierFeatureExtractor
 from tools.eqn_generator import generate_valid_linear_equations
 import threading
@@ -86,8 +89,10 @@ test_equations = [
 ]
 
 np.random.seed(42)
-train_eqns = generate_valid_linear_equations(25, 8, 0xf00d, 0.12, 0.2)
-test_equations = generate_valid_linear_equations(12, 10, 0xfead, 0.12, 0.2)
+# train_eqns = generate_valid_linear_equations(25, 8, 0xf00d, 0.12, 0.2)
+# test_equations = generate_valid_linear_equations(12, 10, 0xfead, 0.12, 0.2)
+train_eqns = generate_valid_linear_equations(2000, 10, 0xf00d, 0.12, 0.2)
+test_equations = generate_valid_linear_equations(25, 15, 0xfead, 0.12, 0.2)
 
 for eqn in train_eqns:
     eqn = create_eqn(eqn) # Assert that the equation is valid
@@ -99,8 +104,8 @@ action_space = EqRewriteActionSpace(supported_vars="x")
 num_actions = len(action_space.actions)
 # alpha = 3e-4
 alpha = 7e-5
-maximum_step_limit = 20
-num_episodes = 200000
+maximum_step_limit = 10
+num_episodes = 800000
 log = True
 gamma = 1 #0.9
 eps = 0.2
@@ -171,6 +176,15 @@ else:
     elif feat_ex_type == "op_var_count":
         feat_ex = OpVarCountFeatureExtractor(train_env)
         num_features = feat_ex.num_features
+    elif feat_ex_type == "op_var_rel_count":
+        feat_ex = OpVarRelCountFeatureExtractor(train_env)
+        num_features = feat_ex.num_features
+    elif feat_ex_type == "var_const_count":
+        feat_ex = VarConstCountFeatureExtractor(train_env)
+        num_features = feat_ex.num_features
+    elif feat_ex_type == "term_var_const_count":
+        feat_ex = TermVarConstCountFeatureExtractor(train_env)
+        num_features = feat_ex.num_features
     else:
         raise ValueError(f"Invalid feature extractor type: {feat_ex_type}")
     if func_approx_type == "nn":
@@ -235,8 +249,13 @@ def test(prefix=None, time_str=None, policy_type="greedy", env=None):
     #     app.gui.set_stop()
 
 def train():
+    time_str = time.strftime('%Y%m%d_%H%M%S')
+    def _eval(policy):
+        test(prefix=train_prefix + "_eval", time_str=time_str, policy_type="greedy", 
+            env=SympyEnv(train_eqns, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False))
+        test(prefix=test_prefix + "_eval", time_str=time_str, policy_type="greedy", 
+            env=SympyEnv(test_equations, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False))
     if do_train:
-        time_str = time.strftime('%Y%m%d_%H%M%S')
         try:
             with train_env:
                 run_policy(
@@ -248,7 +267,7 @@ def train():
                     log=log, 
                     log_file_prefix=train_prefix, 
                     render_func_action_callback=gui_callback,
-                    eval_func_action_callback=lambda policy: test(prefix=test_prefix + "_eval", time_str=time_str),
+                    eval_func_action_callback=_eval,
                     verbose=verbose)
         except Exception as e:
             print(e)

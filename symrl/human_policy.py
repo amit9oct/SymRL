@@ -37,3 +37,6 @@ class HumanPolicy(BasePolicy):
 
     def save(self, filename):
         pass
+
+    def __str__(self) -> str:
+        return "Human Policy"

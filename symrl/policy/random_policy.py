@@ -22,3 +22,6 @@ class RandomPolicy(BasePolicy):
 
     def save(self, filename):
         pass
+
+    def __str__(self) -> str:
+        return "Random Policy"

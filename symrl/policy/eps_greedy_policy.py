@@ -55,3 +55,6 @@ class EpsilonGreedyPolicy(BasePolicy):
             settings = json.load(f)
         func_approximator = BaseFuncApproximator.load(folder)
         return EpsilonGreedyPolicy(settings["epsilon"], settings["num_actions"], func_approximator, settings["break_ties_randomly"])
+    
+    def __str__(self) -> str:
+        return f"EpsilonGreedy(eps={self.epsilon})"

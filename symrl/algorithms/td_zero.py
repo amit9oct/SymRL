@@ -15,3 +15,6 @@ class TDZero(BaseAlgo):
         next_value = 0 if done else max(self.func_approximator.predict_q(next_state, a) for a in range(self.num_actions))
         target = reward + self.gamma * next_value
         self.func_approximator.update_q(state, action, target)
+    
+    def __str__(self) -> str:
+        return f"TDZero(gamma={self.gamma}, num_actions={self.num_actions}, func_approximator={self.func_approximator})"
