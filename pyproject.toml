@@ -7,6 +7,7 @@ requires = [
     "ipython==8.23.0",
     "torch==2.2.2",
     "torchviz==0.0.2",
+    "matplotlib==3.8.4",
     "Kivy==2.3.0"
 ]
 build-backend = "hatchling.build"

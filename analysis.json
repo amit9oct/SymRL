@@ -1,0 +1,22 @@
+[
+    {
+        "name": "Term Var Const Count w Comparison",
+        "folder": "src/.logs/good_runs/100_25_test__simpl_term_var_const_count_lin__td__gr_eval/20240418_064630"
+    },
+    {
+        "name": "Term Var Const Count",
+        "folder": "src/.logs/good_runs/100_25_test__term_var_const_count_lin__td__gr_eval/20240418_061200"
+    },
+    {
+        "name": "Op Var Count w Comparison",
+        "folder": "src/.logs/good_runs/100_25_test__op_var_count_lin__td__gr_eval/20240418_061200"
+    },
+    {
+        "name": "Op Count",
+        "folder": "src/.logs/good_runs/100_25_test__op_count_lin__td__gr_eval/20240418_061200"
+    },
+    {
+        "name": "Hand Crafted Strategy",
+        "folder": "src/.logs/human_test/20240421_153646"
+    }
+]

@@ -2,6 +2,7 @@ sympy==1.12
 gymnasium[classic_control]==0.26.3
 sympy-addons==0.0.5
 ipython==8.23.0
+matplotlib==3.8.4
 kivy
 --extra-index-url https://download.pytorch.org/whl/cu118
 torch

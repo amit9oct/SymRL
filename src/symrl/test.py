@@ -109,26 +109,26 @@ args.add_argument("--alpha", type=float, default=alpha)
 args.add_argument("--maximum_step_limit", type=int, default=maximum_step_limit)
 args.add_argument("--gamma", type=float, default=gamma)
 args.add_argument("--eps", type=float, default=eps)
-args.add_argument("--log", type=bool, default=log)
-args.add_argument("--do_train", type=bool, default=True)
-args.add_argument("--do_test", type=bool, default=True)
-args.add_argument("--do_random_test", type=bool, default=False)
-args.add_argument("--do_random_train", type=bool, default=False)
-args.add_argument("--do_human_test", type=bool, default=False)
-args.add_argument("--do_human_train", type=bool, default=False)
-args.add_argument("--sort_by_term_count", type=bool, default=False)
-args.add_argument("--load", type=bool, default=False)
+args.add_argument("--no_log", action="store_true")
+args.add_argument("--no_train", action="store_true")
+args.add_argument("--no_test", action="store_true")
+args.add_argument("--do_random_test", action="store_true")
+args.add_argument("--do_random_train", action="store_true")
+args.add_argument("--do_human_test", action="store_true")
+args.add_argument("--do_human_train", action="store_true")
+args.add_argument("--sort_by_term_count", action="store_true")
+args.add_argument("--load", action="store_true")
 args.add_argument("--func_approx", type=str, default="lin")
 args.add_argument("--algo", type=str, default="td")
-args.add_argument("--gui", type=bool, default=False)
+args.add_argument("--gui", action="store_true")
 args.add_argument("--feat_ex", type=str, default="op_var_count")
 args.add_argument("--num_features", type=int, default=4)
-args.add_argument("--verbose", type=bool, default=False)
+args.add_argument("--verbose", action="store_true")
 args.add_argument("--exp_prefix", type=str, default="")
-args.add_argument("--train_cnt", type=int, default=250)
+args.add_argument("--train_cnt", type=int, default=100)
 args.add_argument("--test_cnt", type=int, default=25)
 args.add_argument("--train_max_terms", type=int, default=10)
-args.add_argument("--test_max_terms", type=int, default=15)
+args.add_argument("--test_max_terms", type=int, default=12)
 args.add_argument("--float_prob", type=float, default=0.12)
 args.add_argument("--frac_prob", type=float, default=0.2)
 # args.add_argument("--folder", type=str, default=os.path.join(".log", "train__approx_nn__td__eps", "20240331_025235", "model"))
@@ -139,10 +139,10 @@ alpha = args.alpha
 maximum_step_limit = args.maximum_step_limit
 gamma = args.gamma
 eps = args.eps
-log = args.log
+log = not args.no_log
 load_from_file = args.load
-do_train = args.do_train
-do_test = args.do_test
+do_train = not args.no_train
+do_test = not args.no_test
 do_human_test = args.do_human_test
 do_human_train = args.do_human_train
 func_approx_type = args.func_approx
@@ -164,7 +164,8 @@ float_prob = args.float_prob
 frac_prob = args.frac_prob
 train_eqns = generate_valid_linear_equations(train_cnt, train_max_terms, 0xf00d, float_prob, frac_prob)
 test_equations = generate_valid_linear_equations(test_cnt, test_max_terms, 0xfead, float_prob, frac_prob)
-
+print("Arguments:")
+print(args)
 for eqn in train_eqns:
     eqn = create_eqn(eqn) # Assert that the equation is valid
 
@@ -332,14 +333,20 @@ else:
     if random_train:
         do_test_orig = do_test
         do_test = True
-        test(prefix="random_train", policy_type="random",
-            env=SympyEnv(train_eqns, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False))
+        time_str = time.strftime('%Y%m%d_%H%M%S')
+        random_runs = num_episodes // train_cnt
+        for i in range(random_runs):
+            test(prefix="random_train", time_str=time_str, policy_type="random",
+                env=SympyEnv(train_eqns, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False))
         do_test = do_test_orig
     if random_test:
         do_test_orig = do_test
         do_test = True
-        test(prefix="random_test", policy_type="random",
-            env=SympyEnv(test_equations, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False))
+        time_str = time.strftime('%Y%m%d_%H%M%S')
+        eval_times = num_episodes // 1000
+        for i in range(eval_times):
+            test(prefix="random_test", time_str=time_str, policy_type="random",
+                env=SympyEnv(test_equations, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False))
         do_test = do_test_orig
     train()
     test()
