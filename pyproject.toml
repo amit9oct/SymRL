@@ -5,7 +5,7 @@ requires = [
     "gymnasium[classic_control]==0.26.3",
     "sympy-addons==0.0.5",
     "ipython==8.23.0",
-    "torch==2.2.2+cu118",
+    "torch==2.2.2",
     "torchviz==0.0.2",
     "Kivy==2.3.0"
 ]
