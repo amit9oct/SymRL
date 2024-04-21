@@ -31,3 +31,6 @@ Issues = "https://github.com/amit9oct/SymRL/issues"
 
 [tool.hatch.envs.default.env-vars]
 PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cu118"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/symrl"]
