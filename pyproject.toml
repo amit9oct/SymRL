@@ -1,0 +1,30 @@
+[build-system]
+requires = [
+    "hatchling",
+    "sympy==1.12",
+    "gymnasium[classic_control]==0.26.3",
+    "sympy-addons==0.0.5",
+    "ipython==8.23.0",
+    "torch==2.2.2+cu118",
+    "torchviz==0.0.2",
+    "Kivy==2.3.0"
+]
+build-backend = "hatchling.build"
+[project]
+name = "symrl"
+version = "0.0.1"
+authors = [
+  { name="Amitayush Thakur", email="amitayush@utexas.edu" },
+]
+description = "SymRL: A RL Framework for solving symbolic linear equations"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Homepage = "https://github.com/amit9oct/SymRL"
+Issues = "https://github.com/amit9oct/SymRL/issues"
