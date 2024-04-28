@@ -14,7 +14,7 @@ This will open a GUI (as shown below) where you can input your custom equations 
 <!-- Add the gif image here -->
 <img src="eqn_solving.gif" alt="GUI" width="800"/>
 
-> Note: The GUI is only tested on Windows. It may not work on other platforms.
+> Warning: The GUI is only tested on Windows. It may not work on other platforms.
 
 One can also run the best trained model on the test data by running the following command:
 ```bash
@@ -34,7 +34,7 @@ To run the exhaustive training and ablation study, run the following command:
 ```bash
 ./src/symrl/experiments.sh
 ```
->Note: This can take 1-2 days to complete depending on the hardware configuration.
+>Warning: This can take 1-2 days to complete depending on the hardware configuration.
 
 # Generating the Report
 To generate the report (i.e. plots and table summary) after running the exhaustive training and ablation study, run the following command:
