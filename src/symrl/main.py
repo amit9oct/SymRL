@@ -34,65 +34,7 @@ except ImportError:
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-train_eqns = [
-    "7*x - 8*x - 3 = -8 - 6",
-    "7*x + 3*x - 3 = -7 + 9",
-    "-10*x + 6*x + 7 = 4 - 4", # Policy fails on this one
-    "-5*x - 9 = 5 + 4",
-    "7*x - 1*x - 8 = 8 + 4",
-    "-9*x + 6*x + 4 = 1 - 1",
-    "6*x + 1 = -10 - 7",
-    "7*x + 4*x + 8*x + 6 = -1 - 10",
-    "6*x + 6 = 4 - 2",
-    "3*x + 9*x - 1*x - 1 = -8 + 8",
-    "2*x + 4*x - 2 = 6 - 3",
-    "-3*x + 5*x + 10 = -5 + 2",
-    "4*x - 7*x + 5 = 3 - 7",
-    "-8*x + 2*x - 9 = -6 + 5",
-    "9*x - 3*x + 4 = 0 - 2",
-    "1*x + 2*x + 3 = -4 + 9",
-    "-6*x + 7*x - 4 = 5 + 3",
-    "5*x - 2*x + 8 = -7 + 6",
-    "8*x - 4*x - 5 = 2 - 8",
-    "-2*x + 3*x + 9 = -1 - 10",
-    "10*x - 5*x + 7 = 4 + 2",
-    "-1*x + 6*x - 8 = -3 + 7",
-    "3*x - 9*x + 2 = 8 - 4",
-    "4*x + 8*x - 6 = -5 - 6",
-    "-7*x + 4*x + 10 = -2 + 8"
-]
-
-test_equations = [
-    "10*x + 8*x - 5 = 10 - 8",
-    "5*x + 10*x - 9 = 6 - 3",
-    "-6*x - 9*x + 10 = -7 + 4",
-    "-10*x + 5*x - 7 = -2 + 7",
-    "5*x + 6 = -3 + 8",
-    "3*x - 7*x + 2 = 5 - 9",
-    "8*x + 9*x - 4 = 1 + 6",
-    "2*x - 3*x + 7 = -4 + 3",
-    "9*x + 4*x - 8 = 2 - 7",
-    "-4*x + 6*x + 9 = -5 + 10",
-    "1*x - 2*x - 3 = 4 - 8",
-    "7*x + 5*x + 6 = -7 + 2",
-    "-8*x - 1*x - 10 = 3 + 9",
-    "6*x - 4*x + 5 = -6 - 4",
-    "-7*x + 3*x - 6 = 8 - 3",
-    "4*x + 7*x + 8 = -2 - 5",
-    "-5*x + 2*x - 9 = 1 + 4",
-    "10*x - 8*x + 3 = 7 - 1",
-    "9*x - 5*x - 4 = -3 + 6",
-    "-1*x + 9*x + 7 = 5 + 2",
-    "2*x + 6*x - 5 = -4 + 7",
-    "-3*x - 6*x + 1 = 8 - 9",
-    "8*x - 2*x - 7 = 3 + 5",
-    "-9*x + 1*x + 8 = -7 + 4",
-    "7*x - 9*x + 10 = 2 + 6"
-]
-
 np.random.seed(42)
-# train_eqns = generate_valid_linear_equations(25, 8, 0xf00d, 0.12, 0.2)
-# test_equations = generate_valid_linear_equations(12, 10, 0xfead, 0.12, 0.2)
 
 action_space = EqRewriteActionSpace(supported_vars="x")
 num_actions = len(action_space.actions)
@@ -121,7 +63,7 @@ args.add_argument("--load", action="store_true")
 args.add_argument("--func_approx", type=str, default="lin")
 args.add_argument("--algo", type=str, default="td")
 args.add_argument("--gui", action="store_true")
-args.add_argument("--feat_ex", type=str, default="op_var_count")
+args.add_argument("--feat_ex", type=str, default="term_var_const_gtr_cnt")
 args.add_argument("--num_features", type=int, default=4)
 args.add_argument("--verbose", action="store_true")
 args.add_argument("--exp_prefix", type=str, default="")
@@ -131,8 +73,7 @@ args.add_argument("--train_max_terms", type=int, default=10)
 args.add_argument("--test_max_terms", type=int, default=12)
 args.add_argument("--float_prob", type=float, default=0.12)
 args.add_argument("--frac_prob", type=float, default=0.2)
-# args.add_argument("--folder", type=str, default=os.path.join(".log", "train__approx_nn__td__eps", "20240331_025235", "model"))
-args.add_argument("--folder", type=str, default=r".logs\train__op_var_count_lin__td__eps\20240402_181430\model")
+args.add_argument("--folder", type=str, default=None)
 args = args.parse_args()
 num_episodes = args.num_episodes
 alpha = args.alpha
@@ -162,6 +103,7 @@ train_max_terms = args.train_max_terms
 test_max_terms = args.test_max_terms
 float_prob = args.float_prob
 frac_prob = args.frac_prob
+assert not load_from_file or model_folder is not None, "Model folder must be provided if loading from file"
 train_eqns = generate_valid_linear_equations(train_cnt, train_max_terms, 0xf00d, float_prob, frac_prob)
 test_equations = generate_valid_linear_equations(test_cnt, test_max_terms, 0xfead, float_prob, frac_prob)
 print("Arguments:")
@@ -309,12 +251,14 @@ def _gui_callback(env: SympyEnv, state, action, next_state, reward, done, trunca
         time.sleep(0.1)
 
 if launch_gui:
+    assert load_from_file, "Model must be loaded when launching GUI"
+    gui_test_equations = [
+        "-2*x - x -9*x/2 =  6 - 4 + 8.4*x"
+    ]
     gui_callback = _gui_callback
-    app = EquationApp(train_env)
-    threading.Thread(target=train).start()
-    app.run()
     greedy_policy = GreedyPolicy(num_actions=num_actions, func_approximator=func_approx)
-    app = EquationApp(test_env, policy=greedy_policy)
+    gui_env = SympyEnv(gui_test_equations, maximum_step_limit=maximum_step_limit, action_space=action_space, randomize_eqn=False)
+    app = EquationApp(gui_env, policy=greedy_policy)
     threading.Thread(target=test).start()
     app.run()
 else:

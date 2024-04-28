@@ -1,0 +1,1 @@
+{"num_features": 9, "num_actions": 8, "learning_rate": 0.001, "random_init": false, "type": "LinearFuncApproximator"}
