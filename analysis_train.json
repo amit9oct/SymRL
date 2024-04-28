@@ -1,22 +1,26 @@
 [
     {
-        "name": "Term Var Const Count w Comparison",
+        "name": "TVCC w Comparison",
         "folder": "src/.logs/good_runs/100_25_train__simpl_term_var_const_count_lin__td__eps_eval/20240418_064630"
     },
     {
-        "name": "Term Var Const Count",
+        "name": "TVCC",
         "folder": "src/.logs/good_runs/100_25_train__term_var_const_count_lin__td__eps_eval/20240418_061200"
     },
     {
-        "name": "Op Var Count w Comparison",
+        "name": "TVC w Comparison",
         "folder": "src/.logs/good_runs/100_25_train__op_var_count_lin__td__eps_eval/20240418_061200"
     },
     {
-        "name": "Op Count",
+        "name": "TC",
         "folder": "src/.logs/good_runs/100_25_train__op_count_lin__td__eps_eval/20240418_061200"
     },
     {
-        "name": "Hand Crafted Strategy",
+        "name": "Hand-Crafted Strategy",
         "folder": "src/.logs/human_train/20240421_153641"
+    },
+    {
+        "name": "Random Strategy",
+        "folder": "src/.logs/good_runs/random_train/20240421_215746"
     }
 ]

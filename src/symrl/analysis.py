@@ -74,7 +74,8 @@ def plot_replay_summary(
         replay_summaries: typing.List[ReplaySummary], 
         experiment_name, 
         plot_folder: str,
-        combined_ax_list: typing.List[plt.Axes]):
+        combined_ax_list: typing.List[plt.Axes],
+        max_idx: int = -1):
     """
     Plot the replay summaries
     """
@@ -140,6 +141,16 @@ def plot_replay_summary(
     fig.suptitle(experiment_name)
     plot_path = os.path.join(plot_folder, f"{experiment_name}.png")
     plt.savefig(plot_path)
+    print(f"[{experiment_name}] Solved Percentage: {running_avg_solved[-1]}, Average Steps: {running_avg_steps[-1]}, Average Reward: {running_avg_rewards[-1]}")
+    if max_idx == -1:
+        max_solved_episode = np.argmax(solved_percentages)
+    else:
+        max_solved_episode = max_idx
+    print(f"[{experiment_name}] Max Solved Episode: {max_solved_episode}")
+    print(f"[{experiment_name}] Max Solved Percentage: {solved_percentages[max_solved_episode]}, Average Steps: {avg_steps[max_solved_episode]}, Average Reward: {avg_rewards[max_solved_episode]}")
+    min_avg_steps_episode = np.argmin(avg_steps)
+    print(f"[{experiment_name}] Min Average Steps Episode: {min_avg_steps_episode}")
+    print(f"[{experiment_name}] Min Average Steps: {avg_steps[min_avg_steps_episode]}, Solved Percentage: {solved_percentages[min_avg_steps_episode]}, Average Reward: {avg_rewards[min_avg_steps_episode]}")
 
     # add the plot to the combined plot
     combined_ax_list[0].plot(running_avg_solved, label=experiment_name)
@@ -147,7 +158,7 @@ def plot_replay_summary(
     combined_ax_list[2].plot(running_avg_rewards, label=experiment_name)
     pass
 
-def plot_experiments(experiment_details: list, plot_folder: str, plot_name: str = "combined"):
+def plot_experiments(experiment_details: list, plot_folder: str, plot_name: str = "combined", idx: int = -1):
     """
     Plot the experiments
     """
@@ -167,7 +178,7 @@ def plot_experiments(experiment_details: list, plot_folder: str, plot_name: str 
             replay_summary.append(replay_summary[-1])
     for replay_summaries, experiment in zip(all_replay_summaries, experiment_details):
         experiment_name = experiment["name"]
-        plot_replay_summary(replay_summaries, experiment_name, plot_folder, combined_ax)
+        plot_replay_summary(replay_summaries, experiment_name, plot_folder, combined_ax, idx)
     combined_plot_path = os.path.join(plot_folder, "combined.png")
     combined_ax[0].set_title("Solved Percentage")
     combined_ax[0].set_xlabel("Episode bucket")
@@ -189,6 +200,7 @@ if __name__ == "__main__":
     args.add_argument("--analysis_json", type=str, help="The json file containing the analysis details", default="analysis.json")
     args.add_argument("--plot_folder", type=str, help="The folder to save the plots", default=".logs/plots/")
     args.add_argument("--plot_name", type=str, help="The name of the combined plot", default="combined")
+    args.add_argument("--idx", type=int, help="The index of the experiment to plot", default=-1)
     args = args.parse_args()
     # Load the analysis json
     assert os.path.exists(args.analysis_json), f"Analysis json file {args.analysis_json} does not exist"
@@ -214,5 +226,6 @@ if __name__ == "__main__":
     # ]
     plot_folder = args.plot_folder
     plot_name = args.plot_name
-    plot_experiments(experiment_details, plot_folder, plot_name)
+    idx = args.idx
+    plot_experiments(experiment_details, plot_folder, plot_name, idx)
     pass
