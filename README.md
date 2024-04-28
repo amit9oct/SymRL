@@ -14,6 +14,8 @@ This will open a GUI (as shown below) where you can input your custom equations 
 <!-- Add the gif image here -->
 <img src="eqn_solving.gif" alt="GUI" width="800"/>
 
+> Note: The GUI is only tested on Windows. It may not work on other platforms.
+
 One can also run the best trained model on the test data by running the following command:
 ```bash
 python src/symrl/run_inference_on_test_data.py
