@@ -9,7 +9,10 @@ The best model is saved in the `src/.models` directory. To run the model on your
 ```bash
 python src/symrl/run_gui.py
 ```
-This will open a GUI where you can input your custom equations and get the results.
+This will open a GUI (as shown below) where you can input your custom equations and get the results.
+
+<!-- Add the gif image here -->
+<img src="eqn_solving.gif" alt="GUI" width="800"/>
 
 One can also run the best trained model on the test data by running the following command:
 ```bash
